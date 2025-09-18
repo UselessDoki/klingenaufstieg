@@ -684,6 +684,9 @@ window.addEventListener('DOMContentLoaded', ()=>{
 
 // Shortcut: Im Startmenü taste "B" für Boss-Testmodus (Kristof) sofort
 window.addEventListener('keydown', (e)=>{
+  // Wenn ein Eingabefeld (input, textarea oder contenteditable) fokussiert ist, keine Hotkeys ausführen
+  const active = document.activeElement;
+  if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
   if(e.key === 'b' || e.key === 'B'){
     const sm = document.getElementById('startMenu');
     if(sm && sm.classList.contains('show')){
@@ -727,6 +730,8 @@ window.addEventListener('keydown', (e)=>{
 // Halberd Ult: NUR auf keyup R auslösen, mit Debounce damit nur EIN Trigger pro Tastendruck!
 window._halberdUltKeyHeld = false;
 window.addEventListener('keydown', (e)=>{
+  const active = document.activeElement;
+  if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
   if((e.key==='r'||e.key==='R') && window.weapons && player && player.weaponIndex!=null){
     const w = window.weapons[player.weaponIndex];
     if(w && w.id==='halbard'){
@@ -1383,14 +1388,15 @@ function releaseHalberdCharge(){
 
   // Keydown zentral abfangen (nur nicht wenn Input fokussiert)
   window.addEventListener('keydown', ev=>{
-    if(ev.target && (ev.target.tagName==='INPUT' || ev.target.tagName==='TEXTAREA' || ev.target.isContentEditable)) return;
-    const k = ev.key.toLowerCase();
-    if(k==='escape' && window.fireFieldTargeting && window.fireFieldTargeting.active){
-      window.fireFieldTargeting = null; if(typeof window._rebuildAbilityBar==='function') window._rebuildAbilityBar(); return; }
-    // Sonderfall: R / F bereits durch alten Code? -> wir lassen neuen Handler priorisiert und entfernen später alten spezifischen Code (TODO Cleanup)
-    const bind = getBindingByKey(k);
-    if(bind){ dispatchAbility(bind.ability); }
-  }, true);
+      const active = document.activeElement;
+      if(active && (active.tagName==='INPUT' || active.tagName==='TEXTAREA' || active.isContentEditable)) return;
+      const k = ev.key.toLowerCase();
+      if(k==='escape' && window.fireFieldTargeting && window.fireFieldTargeting.active){
+        window.fireFieldTargeting = null; if(typeof window._rebuildAbilityBar==='function') window._rebuildAbilityBar(); return; }
+      // Sonderfall: R / F bereits durch alten Code? -> wir lassen neuen Handler priorisiert und entfernen später alten spezifischen Code (TODO Cleanup)
+      const bind = getBindingByKey(k);
+      if(bind){ dispatchAbility(bind.ability); }
+    }, true);
   // Maus (LMB/RMB) -> spätere Hook in eigentlichem Attack-System, hier nur RMB Fallback wenn gebunden
   window.addEventListener('contextmenu', e=>{ const b=getBindingByKey('rmb'); if(b){ e.preventDefault(); dispatchAbility(b.ability); } });
 })();
@@ -1729,6 +1735,8 @@ window.addEventListener('keyup', (e)=>{
 
 // Curse Skill Input (F halten & loslassen)
 window.addEventListener('keydown', (e)=>{
+  const active = document.activeElement;
+  if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
   if(e.key==='f' || e.key==='F'){
     try {
       const c = window.curseSkill; if(!c) return;
@@ -2639,7 +2647,9 @@ let playerLastMove = {x:0, y:1};
   
   let lastRestart = 0;
   addEventListener('keydown', e=>{
-      const k = e.key.toLowerCase();
+    const active = document.activeElement;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
+    const k = e.key.toLowerCase();
 // Dolch-DoT-Mechanik
 let lastDaggerDotTime = 0;
 function throwDaggerDot() {
@@ -3591,10 +3601,10 @@ function updateActionKeyUI(dt){
 if(!window.weapons) window.weapons = weapons;
 
 
-  const state = { running:true, dead:false, time:0, lastTime:performance.now(), spawnTimer:0, spawnInterval:1.4, enemies:[], particles:[], projectiles:[], slashes:[], enemyShots:[], _slashId:0, _sweepId:0, spawnMultiplier:1, fredBladeTimer:0, fredBladeRot:0, autoWeaponSpin:false, autoWeaponSpinTimer:0, bossAlive:false, metaStage: 1, aoes:[], sweeps:[], absorbing: [], kristofKillsLeft: 100, chests: [],
-    // Kristof Spawn Gates: Mindest-Spielzeit & Mindest-Kills bevor Counter-Spawn erlaubt ist
-    kristofMinTime: 60, // Sekunden (anpassbar)
-    kristofMinKills: 25 // absolute Spieler-Kills (player.kills)
+  const state = { running:true, dead:false, time:0, lastTime:performance.now(), spawnTimer:0, spawnInterval:1.4, enemies:[], particles:[], projectiles:[], slashes:[], enemyShots:[], _slashId:0, _sweepId:0, spawnMultiplier:1, fredBladeTimer:0, fredBladeRot:0, autoWeaponSpin:false, autoWeaponSpinTimer:0, bossAlive:false, metaStage: 1, aoes:[], sweeps:[], absorbing: [],
+    kristofKillsLeft: 100, // Startwert für ersten Kristof
+    kristofKillStep: 50,   // Erhöhung pro Kristof
+    kristofSpawns: 0,      // Wie oft Kristof schon gespawnt wurde
   };
   // Moon Slash Counter (nur für Sword Hits)
   window.moonSlashCounter = 0;
@@ -4131,8 +4141,12 @@ window.spawnEnemy = function(type, ...args) {
     if(typeof window.getXPReq !== 'function'){
       window.getXPReq = function(level){
         if(level<=1) return 0;
-        // Quadratisch leicht ansteigend + kleiner linearer Anteil
-        return Math.round(100 + (level-1)*55 + (level-1)*(level-1)*18);
+        // Bis Level 5 wie bisher
+        if(level<=5) return Math.round(100 + (level-1)*55 + (level-1)*(level-1)*18);
+        // Level 6 und 7: doppelt so schwer
+        if(level<=7) return Math.round(2 * (100 + (level-1)*55 + (level-1)*(level-1)*18));
+        // Ab Level 8: zehnmal so schwer
+        return Math.round(10 * (100 + (level-1)*55 + (level-1)*(level-1)*18));
       };
     }
     // Demo-Truhen spawnen (frühe Sichtprüfung) – nur einmal beim Laden
@@ -4278,9 +4292,9 @@ window.spawnEnemy = function(type, ...args) {
     let effectiveBonus = 0;
     for(let L=2; L<=lvlNow; L++) {
       let mul = 1;
-      if(L >= 21) mul = 0.25; // sehr geringe Zuwächse spät
-      else if(L >= 16) mul = 0.40; // mittlere Reduktion
-      else if(L >= 11) mul = 0.60; // frühe Dämpfung
+      if(L >= 21) mul = 0.10; // extrem geringe Zuwächse spät
+      else if(L >= 16) mul = 0.20; // sehr starke Reduktion
+      else if(L >= 11) mul = 0.40; // starke Dämpfung
       // Level 2..10 => mul=1 (volle Skalierung)
       effectiveBonus += basePer * mul;
     }
@@ -4324,8 +4338,17 @@ window.spawnEnemy = function(type, ...args) {
           w.next = Infinity;
           break;
         } else {
-          const baseReq = WEAPON_XP_PER_LEVEL + Math.floor(w.lvl*2.5);
-          w.next = baseReq * WEAPON_XP_DIFFICULTY;
+          // Bis Level 5 wie bisher
+          if(w.lvl<=5){
+            const baseReq = WEAPON_XP_PER_LEVEL + Math.floor(w.lvl*2.5);
+            w.next = baseReq * WEAPON_XP_DIFFICULTY;
+          } else if(w.lvl<=7){
+            const baseReq = WEAPON_XP_PER_LEVEL + Math.floor(w.lvl*2.5);
+            w.next = 2 * baseReq * WEAPON_XP_DIFFICULTY;
+          } else {
+            const baseReq = WEAPON_XP_PER_LEVEL + Math.floor(w.lvl*2.5);
+            w.next = 10 * baseReq * WEAPON_XP_DIFFICULTY;
+          }
         }
       }
       buildUI();
@@ -4962,7 +4985,8 @@ setTimeout(() => {
         if(!enemy || enemy.boss || enemy.type==='weaponOnly') return; // keine Kisten von Bossen/Spezial
         state.chestTimer = state.chestTimer || 0;
         // Basis-Chance je nach Gegnertyp leicht unterschiedlich
-        if(typeof window.CHEST_DROP_GLOBAL_SCALE !== 'number') window.CHEST_DROP_GLOBAL_SCALE = 0.5; // -50% global
+  // Truhen-Spawnrate global um 50% reduziert
+  window.CHEST_DROP_GLOBAL_SCALE = 0.5;
         let base = enemy.elite ? 0.25 : 0.04; // 25% Elite, 4% normal (vor Skalierung)
         base *= window.CHEST_DROP_GLOBAL_SCALE;
         if(enemy.type==='ranged') base *= 1.15;
@@ -5028,28 +5052,18 @@ setTimeout(() => {
         }
       }
   if(e && !e.boss && !e.bossMinion && !e._kristofTokenDropped) {
-    const kristofDecrement = 1;
-    state.kristofKillsLeft = Math.max(0, state.kristofKillsLeft - kristofDecrement);
-    showKristofCounter();
+    state.kristofKillsLeft = Math.max(0, state.kristofKillsLeft - 1);
+    showKristofCounter && showKristofCounter();
     if(state.kristofKillsLeft === 0 && !state.enemies.some(en => en.boss && en.name === 'Kristof')) {
-      const timeGateOk = (state.time >= (state.kristofMinTime||0));
-      const killGateOk = (player.kills >= (state.kristofMinKills||0));
-      if(!timeGateOk || !killGateOk){
-        // Counter erreicht, aber Gate(s) nicht erfüllt -> Counter bleibt auf 0 stehen bis erfüllt
-        if(!state._kristofGateLogOnce){
-          state._kristofGateLogOnce = true;
-          console.log('[Kristof][GateHold] Counter=0 aber Gates nicht erfüllt', {time: state.time.toFixed(1), timeGateOk, kills: player.kills, killGateOk, needTime: state.kristofMinTime, needKills: state.kristofMinKills});
+      // Kristof spawnen
+      setTimeout(()=>{
+        if(!state.enemies.some(en => en.boss && en.name === 'Kristof')){
+          try { spawnKristof(); state.bossAlive = true; } catch(err){ console.warn('[Kristof][SpawnError]', err); }
+          // Nach jedem Kristof-Spawn: Schritt erhöhen
+          state.kristofSpawns = (state.kristofSpawns||0) + 1;
+          state.kristofKillsLeft = 100 + state.kristofSpawns * (state.kristofKillStep||50);
         }
-      } else if(!state._kristofSpawnQueued){
-        state._kristofSpawnQueued = true;
-        console.log('[Kristof][SpawnQueue] Bedingungen erfüllt (Counter + Gates). Spawne in 1.5s...');
-        setTimeout(()=>{
-          if(!state.enemies.some(en => en.boss && en.name === 'Kristof')){
-            console.log('[Kristof][Spawn] Starte Spawn (Gates frei)');
-            try { spawnKristof(); state.bossAlive = true; } catch(err){ console.warn('[Kristof][SpawnError]', err); }
-          }
-        }, 1500);
-      }
+      }, 1500);
     }
     e._kristofTokenDropped = true;
   }
