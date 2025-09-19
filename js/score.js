@@ -1,0 +1,136 @@
+ 
+
+const SCORE_STORAGE_KEY = 'schnitzel_score_v1';
+
+const scoreConfig = {
+  points: {
+  kill: 10,
+  elite: 50,
+  special: 30,
+  boss: 200,
+  level: 40,
+  weaponLevel: 25
+  },
+  milestones: {
+    level: [5, 10, 20, 30, 50, 100],
+    weapon: [3, 5, 7, 10]
+  }
+};
+
+let scoreState = {
+  total: 0,
+  kills: 0,
+  elites: 0,
+  specials: 0,
+  bosses: 0,
+  levelMilestones: [],
+  weaponMilestones: [],
+  lastLevel: 1,
+  lastWeaponLevels: {}
+};
+
+ 
+function updateLiveScore() {
+  let live = document.getElementById('liveScore');
+  if(live) {
+    live.textContent = `Score: ${scoreState.total}`;
+  }
+}
+
+window.updateLiveScore = updateLiveScore;
+window.addScore = addScore;
+
+function addScore(type, data) {
+  let pts = 0;
+  console.log('[Score] addScore aufgerufen:', type, data, 'aktueller Score:', scoreState.total);
+  switch(type) {
+    case 'kill': scoreState.kills++; pts = scoreConfig.points.kill; break;
+    case 'elite': scoreState.elites++; pts = scoreConfig.points.elite; break;
+    case 'special': scoreState.specials++; pts = scoreConfig.points.special; break;
+    case 'boss': scoreState.bosses++; pts = scoreConfig.points.boss; break;
+    case 'level':
+      if (!scoreState.levelMilestones.includes(data)) {
+        scoreState.levelMilestones.push(data);
+        pts = scoreConfig.points.level;
+      }
+      break;
+    case 'weaponLevel':
+      if (!scoreState.weaponMilestones.includes(data)) {
+        scoreState.weaponMilestones.push(data);
+        pts = scoreConfig.points.weaponLevel;
+      }
+      break;
+  }
+  scoreState.total += pts;
+  updateScoreMenu();
+  if(typeof updateLiveScore==='function') updateLiveScore();
+}
+
+
+
+function updateScoreMenu() {
+  let menu = document.getElementById('scoreMenu');
+  if(!menu) return;
+  menu.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+      <h2 style="margin:0;">Score Übersicht</h2>
+      <button onclick="hideScoreMenu()" style="background:#333;color:#fff;border:none;font-size:1.3em;padding:2px 12px;border-radius:6px;cursor:pointer;">✕</button>
+    </div>
+    <div><b>Punkte:</b> ${scoreState.total}</div>
+    <div>Normale Gegner: ${scoreState.kills}</div>
+    <div>Elites: ${scoreState.elites}</div>
+    <div>Specials: ${scoreState.specials}</div>
+    <div>Bosse: ${scoreState.bosses}</div>
+    <div>Level-Meilensteine: ${scoreState.levelMilestones.join(', ') || '-'}</div>
+    <div>Waffen-Meilensteine: ${scoreState.weaponMilestones.join(', ') || '-'}</div>
+  `;
+}
+
+function showScoreMenu() {
+  let menu = document.getElementById('scoreMenu');
+  if(!menu) {
+    menu = document.createElement('div');
+    menu.id = 'scoreMenu';
+    menu.style.position = 'fixed';
+    menu.style.top = '60px';
+    menu.style.right = '40px';
+    menu.style.background = '#23232a';
+    menu.style.color = '#fff';
+    menu.style.padding = '22px 32px';
+    menu.style.borderRadius = '12px';
+    menu.style.boxShadow = '0 4px 24px #000a';
+    menu.style.zIndex = 3000;
+    menu.style.fontSize = '1.1em';
+    menu.style.minWidth = '260px';
+    document.body.appendChild(menu);
+  }
+  updateScoreMenu();
+  menu.style.display = 'block';
+}
+
+function hideScoreMenu() {
+  let menu = document.getElementById('scoreMenu');
+  if(menu) menu.style.display = 'none';
+}
+
+ 
+function showGameOverScore() {
+  let over = document.getElementById('gameOver');
+  if(!over) return;
+  let scoreDiv = document.getElementById('gameOverScore');
+  if(!scoreDiv) {
+    scoreDiv = document.createElement('div');
+    scoreDiv.id = 'gameOverScore';
+    scoreDiv.style.fontSize = '2.2em';
+    scoreDiv.style.fontWeight = 'bold';
+    scoreDiv.style.color = '#38e1d7';
+    scoreDiv.style.margin = '18px 0 0 0';
+    scoreDiv.style.textAlign = 'center';
+    over.querySelector('.panel').appendChild(scoreDiv);
+  }
+  scoreDiv.textContent = `Score: ${scoreState.total}`;
+}
+
+window.showScoreMenu = showScoreMenu;
+window.hideScoreMenu = hideScoreMenu;
+window.showGameOverScore = showGameOverScore;
