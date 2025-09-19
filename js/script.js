@@ -1149,7 +1149,7 @@ function releaseHalberdCharge(){
   function applyFireFieldDamage(e, dmg){
     if(dmg<=0) return;
     e.hp -= dmg;
-    e.hitFlash = Math.max(e.hitFlash||0, 0.2);
+    e.hitFlash = Math.max(e.hitFlash||0, 0.5);
     for(let i=0;i<3;i++) particle(e.x+(Math.random()-0.5)*(e.r||24), e.y+(Math.random()-0.5)*(e.r||24), 'rgba(255,120,40,0.85)');
     // Einheitlicher Damage Floater (Typ fire)
     if(typeof window.addDamageFloater === 'function'){
@@ -1203,7 +1203,7 @@ function releaseHalberdCharge(){
       if(e._fireFieldTemp && e._fireFieldTemp.inside){
         // Refresh a very short slow window each frame (prevents lingering after exit)
         const nowTime = state.time || (performance.now()/1000);
-        const durFrame = 0.25; // 250ms grace; removed quickly after leaving
+        const durFrame = 0.35; // 250ms grace; removed quickly after leaving
         const targetFactor = 1 - f.slowPct; // e.g. 0.75 => 25% slow
         if(!e.slowUntil || e.slowUntil < nowTime + durFrame){ e.slowUntil = nowTime + durFrame; }
         if(e.slowFactor==null) e.slowFactor = targetFactor; else e.slowFactor = Math.min(e.slowFactor, targetFactor);
