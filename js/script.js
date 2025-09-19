@@ -1095,10 +1095,10 @@ function releaseHalberdCharge(){
   window.fireFieldConfig = Object.assign({
     radius: 120,
     shape: 'circle', // optional 'square'
-    duration: 5,
+    duration: 7,
     tickEvery: 1,
     slowPct: 0.25,
-    maxStacks: 3,
+    maxStacks: 5,
     stackDuration: 5,
     dmgPerStackMul: 0.5,
     cooldown: 10,
