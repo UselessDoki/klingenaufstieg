@@ -1100,7 +1100,7 @@ function releaseHalberdCharge(){
     slowPct: 0.25,
     maxStacks: 5,
     stackDuration: 5,
-    dmgPerStackMul: 0.5,
+    dmgPerStackMul: 0.8,
     cooldown: 10,
     commitOnSecondQ: false, // entfernt Logik – bleibt für Abwärtskompat., aber ungenutzt
     showPreviewHint: false   // kein Hilfetext beim Zielen
