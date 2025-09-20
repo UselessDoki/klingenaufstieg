@@ -705,13 +705,7 @@ window.addEventListener('keydown', (e)=>{
   // Wenn ein Eingabefeld (input, textarea oder contenteditable) fokussiert ist, keine Hotkeys ausführen
   const active = document.activeElement;
   if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
-  if(e.key === 'b' || e.key === 'B'){
-    const sm = document.getElementById('startMenu');
-    if(sm && sm.classList.contains('show')){
-      const btn = document.getElementById('testBossBtn');
-      if(btn){ btn.click(); }
-    }
-  }
+  // Testmodus per Taste B im Startmenü ist deaktiviert!
   // R für Halberd Ult NICHT mehr auf keydown auslösen!
   if(e.key === 'r' || e.key === 'R'){
     if(e.shiftKey && typeof window.forceSpin==='function'){ window.forceSpin(); return; }
@@ -731,7 +725,8 @@ window.addEventListener('keydown', (e)=>{
           m.targeting = true;
           m.holdStart = performance.now();
           m.targetX = mouseX; m.targetY = mouseY;
-          m.summonActive = true; m.summonT = 0;
+          m.summonActive = true;
+          m.summonT = 0;
           // FEHLENDER State: setze jetzt echten windup-State damit Update-Loop m.windupT verarbeitet
           m.state = 'windup';
           m.windupT = 0;
@@ -2118,9 +2113,9 @@ function updateShockwaves(dt){
       if(!dodge){
         const dmg = Math.round(player.maxHp * 0.20);
         if(typeof damagePlayer === 'function'){
-          damagePlayer(dmg);
+          damagePlayer(dmg, { sourceIsBoss: true });
         } else {
-          player.hp = Math.max(0, player.hp - dmg);
+          player.hp = Math.max(0, player.hp - Math.round(dmg * 0.5));
         }
       }
       sw.hit = true;
@@ -2196,6 +2191,15 @@ enemySpriteSheets.NormFern.walk.h = 128;
 enemySpriteSheets.EliteNah.walk.img.src = 'img/Gegner/EliteNah/walk.png';
 enemySpriteSheets.EliteFern.walk.img.src = 'img/Gegner/EliteFern/walk.png';
 
+// BossLeo (Kristof-style model) sprite sheets
+enemySpriteSheets.BossLeo = {
+  walk: { img: new Image(), w: 128, h: 128, frames: 36, fps: 8, cols: 9, rows: 4 },
+  thrust_oversize: { img: new Image(), w: 192, h: 192, frames: 32, fps: 12, cols: 8, rows: 4 },
+  r: 48
+};
+enemySpriteSheets.BossLeo.walk.img.src = 'img/Gegner/BossLeo/walk.png';
+enemySpriteSheets.BossLeo.thrust_oversize.img.src = 'img/Gegner/BossLeo/thrust_oversize.png';
+
 // --- Elite Dash Attack Config ---
 const ELITE_DASH_CFG = {
   telegraph: 0.75,          // länger: mehr Reaktionszeit (vorher 0.55)
@@ -2214,6 +2218,13 @@ const ELITE_DASH_CFG = {
 };
 
 function getEnemySpriteSheet(e) {
+  // Special-case: BossLeo uses its own dedicated sheets
+  try {
+    // BossLeo und Kristof bekommen immer das BossLeo-Sprite
+    if(e && e.boss && (e.name === 'BossLeo' || e.id === 'BossLeo' || e.name === 'Kristof')) {
+      return enemySpriteSheets.BossLeo.walk;
+    }
+  } catch(_err){}
   if(e.elite && e.type==='ranged') return enemySpriteSheets.EliteFern.walk;
   if(e.elite) return enemySpriteSheets.EliteNah.walk;
   if(e.type==='ranged') return enemySpriteSheets.NormFern.walk;
@@ -4784,27 +4795,21 @@ setTimeout(() => {
     ctx.restore();
   }
       if(!e || !e.boss || !e.phasePools) {
-        
         if(e && e.hp <= 0){ if(idx!=null) killEnemy(idx, e); else { const i = state.enemies.indexOf(e); if(i>=0) killEnemy(i,e); } }
         return;
       }
-      
-  if(e.hp > 0) return; 
-      
+      if(e.hp > 0) return;
+      // Only allow phase transition if not in the last phase
       if(e.currentPhase < e.phasePools.length - 1){
         e.currentPhase++;
         e.maxHp = e.phasePools[e.currentPhase];
         e.hp = e.maxHp;
-        
         if(e.phases && e.phases[e.currentPhase]) state.bossPhaseRequiredColor = e.phases[e.currentPhase].color;
-        
         spawnPhaseSpecials(e);
-        
-  for(let p=0;p<18;p++) particle(e.x + (Math.random()-0.5)*e.r*3, e.y + (Math.random()-0.5)*e.r*3, '#cccccc');
-        
+        for(let p=0;p<18;p++) particle(e.x + (Math.random()-0.5)*e.r*3, e.y + (Math.random()-0.5)*e.r*3, '#cccccc');
       } else {
-        
-        if(idx!=null) killEnemy(idx, e); else { const i=state.enemies.indexOf(e); if(i>=0) killEnemy(i,e); }
+        // Final phase: do not refill HP, allow Kristof to be killed
+        if(e.hp <= 0){ if(idx!=null) killEnemy(idx, e); else { const i=state.enemies.indexOf(e); if(i>=0) killEnemy(i,e); } }
       }
     }
 
@@ -4947,10 +4952,13 @@ setTimeout(() => {
   // Restart global verfügbar machen für Inline-Handler im HTML
   if(typeof window !== 'undefined') window.restart = restart;
   // restartPreserve entfernt – einheitliche Restart-Logik
-    function damagePlayer(d){
+    function damagePlayer(d, opts){
+  // opts: { sourceIsBoss: boolean }
   const cfg = window.enemyScalingConfig || {};
   let original = d;
   let factors = [];
+  // Centralized boss damage reduction: if damage originates from a boss, halve it
+  if(opts && opts.sourceIsBoss){ d = Math.round(d * 0.5); factors.push('bossReduction*0.5'); }
   if(player.explosionDebuff){ d *= 1.10; factors.push('explosionDebuff*1.10'); }
   if(player.permanentDamageDebuff){ d *= 1.10; factors.push('permanentDamageDebuff*1.10'); }
   if(player.eliteKillBuff){ d *= 0.91; factors.push('eliteKillBuff*0.91'); }
@@ -5944,7 +5952,7 @@ let current_hp = phase_hp[0];
       e.y += (toY/dist) * e.speed * dt;
       const pr = player.effectiveR || player.r;
       if(dist < e.r + pr - 2 && player.iFrames <= 0) {
-        damagePlayer(e.dmg);
+        damagePlayer(e.dmg, { sourceIsBoss: true });
       }
     }
     // Debug State Log (einfacher Überblick):
@@ -6041,7 +6049,7 @@ let current_hp = phase_hp[0];
                 } else {
                   dashDmg = e.dmg * ELITE_DASH_CFG.dmgFactor;
                 }
-                damagePlayer(dashDmg);
+                damagePlayer(dashDmg, { sourceIsBoss: e.boss === true });
                 if(player.iFrames < ELITE_DASH_CFG.touchIFrame) player.iFrames = ELITE_DASH_CFG.touchIFrame;
                 // Sofort in Recover wechseln
                 e.dashState='recover';
@@ -6089,8 +6097,9 @@ let current_hp = phase_hp[0];
         if(!e) continue;
   const pr2 = player.effectiveR || player.r;
   if(dist < e.r + pr2 - 2){
-          if(e.type === 'weaponOnly' && e.explodesOnTouch){
-            damagePlayer(Math.round(player.maxHp * 0.10));
+            if(e.type === 'weaponOnly' && e.explodesOnTouch){
+            // explosion from weaponOnly: consider as boss-sourced only if the entity is marked boss
+            damagePlayer(Math.round(player.maxHp * 0.10), { sourceIsBoss: !!e.boss });
             player.explosionDebuff = true;
             player.explosionDebuffTimer = 10.0;
             for(let p=0;p<12;p++) particle(e.x,e.y,'#cccccc');
@@ -6111,9 +6120,18 @@ let current_hp = phase_hp[0];
         }
       }
   
-  if(accumulatedTouch > 0){ damagePlayer(accumulatedTouch); }
+  if(accumulatedTouch > 0){
+    // accumulatedTouch currently includes boss contributions as larger whole numbers and non-boss as time-scaled.
+    // Heuristic: treat any contribution coming from e.boss as boss-sourced earlier; but since we mixed them, apply conservative approach:
+    // If any boss exists near player, call damagePlayer with sourceIsBoss true for the boss portion. Simpler: if accumulatedTouch > player.maxHp*0.5 assume boss involvement.
+    // Safer approach: halve damage if any boss is present in enemies array within short range.
+    let bossNearby = false;
+    for(const be of state.enemies){ if(be && be.boss && Math.hypot(be.x-player.x, be.y-player.y) < 600) { bossNearby = true; break; } }
+    if(bossNearby){ damagePlayer(accumulatedTouch, { sourceIsBoss: true }); }
+    else { damagePlayer(accumulatedTouch); }
+  }
 
-      for(let i=state.enemyShots.length-1;i>=0;i--){ const s=state.enemyShots[i]; s.x+=s.vx*dt; s.y+=s.vy*dt; s.life-=dt; if(s.life<=0){ state.enemyShots.splice(i,1); continue; } const d=Math.hypot(s.x-player.x,s.y-player.y); if(d<player.r+s.r){ damagePlayer(s.dmg); state.enemyShots.splice(i,1); continue; } if(s.x<-30||s.x>innerWidth+30||s.y<-30||s.y>innerHeight+30) state.enemyShots.splice(i,1); }
+  for(let i=state.enemyShots.length-1;i>=0;i--){ const s=state.enemyShots[i]; s.x+=s.vx*dt; s.y+=s.vy*dt; s.life-=dt; if(s.life<=0){ state.enemyShots.splice(i,1); continue; } const d=Math.hypot(s.x-player.x,s.y-player.y); if(d<player.r+s.r){ damagePlayer(s.dmg, { sourceIsBoss: !!s.sourceIsBoss }); state.enemyShots.splice(i,1); continue; } if(s.x<-30||s.x>innerWidth+30||s.y<-30||s.y>innerHeight+30) state.enemyShots.splice(i,1); }
 
       for(let s=state.slashes.length-1; s>=0; s--){
         const sl=state.slashes[s];
