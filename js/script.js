@@ -1118,7 +1118,7 @@ function releaseHalberdCharge(){
     slowPct: 0.25,
     maxStacks: 5,
     stackDuration: 5,
-    dmgPerStackMul: 0.8,
+  dmgPerStackMul: 1.0,
     cooldown: 10,
     commitOnSecondQ: false, // entfernt Logik – bleibt für Abwärtskompat., aber ungenutzt
     showPreviewHint: false   // kein Hilfetext beim Zielen
@@ -1167,8 +1167,7 @@ function releaseHalberdCharge(){
   function applyFireFieldDamage(e, dmg){
     if(dmg<=0) return;
     e.hp -= dmg;
-    e.hitFlash = Math.max(e.hitFlash||0, 0.5);
-    for(let i=0;i<3;i++) particle(e.x+(Math.random()-0.5)*(e.r||24), e.y+(Math.random()-0.5)*(e.r||24), 'rgba(255,120,40,0.85)');
+    // Kein rotes Leuchten mehr durch Feuerfeld-Schaden
     // Einheitlicher Damage Floater (Typ fire)
     if(typeof window.addDamageFloater === 'function'){
       window.addDamageFloater({x:e.x, y:e.y-(e.r||20), amount:dmg, type:'fire'});
