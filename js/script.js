@@ -3769,6 +3769,14 @@ window.spawnEnemy = function(type, ...args) {
           if(typeof restart === 'function') restart();
         });
       }
+      const restartBtnReload = document.getElementById('restartBtnReload');
+      if(restartBtnReload && !restartBtnReload.__wired){
+        restartBtnReload.__wired = true;
+        restartBtnReload.addEventListener('click', (e)=>{
+          e.preventDefault();
+          window.location.reload();
+        });
+      }
     })();
 
     function buildUI(){
