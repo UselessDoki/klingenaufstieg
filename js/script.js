@@ -1,3 +1,21 @@
+// --- Fix: Reset movement keys on blur/visibilitychange to prevent stuck movement ---
+function resetMovementKeys() {
+  if(window.keysDown) {
+    for(const k in window.keysDown) window.keysDown[k] = false;
+  }
+  if(window.keyState) {
+    for(const k in window.keyState) window.keyState[k] = false;
+  }
+  // Falls direkte Bewegungsflags existieren (z.B. moveLeft, moveRight ...), auch diese zurücksetzen
+  if(typeof moveLeft !== 'undefined') moveLeft = false;
+  if(typeof moveRight !== 'undefined') moveRight = false;
+  if(typeof moveUp !== 'undefined') moveUp = false;
+  if(typeof moveDown !== 'undefined') moveDown = false;
+}
+window.addEventListener('blur', resetMovementKeys);
+window.addEventListener('visibilitychange', function(){
+  if(document.hidden) resetMovementKeys();
+});
 // Hübschere Truhe (Kastenform) mit flachem Deckel, Metallkanten & Glühen beim Öffnen
 function drawChest(ctx, chest){
   if(!chest) return;
