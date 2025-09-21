@@ -1354,7 +1354,7 @@ function releaseHalberdCharge(){
               radius: 320,
               width: 66,
               color: '#ffb347', // wie Ult-Phase 2
-              dmg: Math.round(player.dmg * (w.dmgMul || 1) * 2.2),
+              dmg: Math.round(player.dmg * (w.dmgMul || 1) * 10.0), // 1000% (10x) damage for Halberd R
               age: 0,
               weaponIndex:player.weaponIndex,
               isHalberdUlt: true // MARKIERT als Ult-Sweep für Spezial-Render
@@ -1373,7 +1373,29 @@ function releaseHalberdCharge(){
         return;
       }
       // ...sonst Standardangriff...
-      /* TODO: Implementiere später Projektil / Nahkampfschlag */
+      // Halberd: Nach Evolution werden alle Angriffe zu Rundumschlägen
+      if (w && w.id === 'halbard' && w.evolved) {
+        // Rundumschlag-Logik (wie Ult, aber für jeden Angriff)
+        const sid = ++state._sweepId;
+        const sweep = {
+          id: sid,
+          startTime: state.time,
+          dur: 0.8,
+          angle: 0,
+          targetAngle: Math.PI*2,
+          radius: 320,
+          width: 66,
+          color: '#ffb347',
+          dmg: Math.round(player.dmg * (w.dmgMul || 1)),
+          age: 0,
+          weaponIndex:player.weaponIndex,
+          isHalberdUlt: true
+        };
+        state.sweeps.push(sweep);
+        if(window.playSound) window.playSound('ult_sweep');
+        return;
+      }
+      // ...existing code...
     },
     placeholder:false,
     showCondition(){ return true; }
@@ -3599,7 +3621,7 @@ function updateActionKeyUI(dt){
       else if(milestone === 25) { w.dmgMul *= 1.25; w.range += 10; }
     }
   },
-  { id:'halbard', name:'Halbarde', type:'slash', color:'#3be67a', dmgMul:1.6, range:86, arc:2.2, cooldown:0.55, lvl:1, xp:0, next:110, evolveLevel:5, evolved:false,
+  { id:'halbard', name:'Halbarde', type:'slash', color:'#3be67a', dmgMul:5.0, range:86, arc:2.2, cooldown:0.55, lvl:1, xp:0, next:110, evolveLevel:3, evolved:false,
     evolve(w){ w.evolved=true; w.name='Dämmerbrecher'; w.knock=300; w.dmgMul*=1.2; },
     onLevel(w){ w.dmgMul*=1.10; w.range+=6; w.cooldown*=0.97; },
     onUpgrade(w, milestone) {
