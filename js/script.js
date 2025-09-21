@@ -1,3 +1,57 @@
+// === Overlay Transparency Logic ===
+// Elements to make transparent when player is underneath
+const overlayElements = [
+  document.getElementById('newTopHud'),
+  document.getElementById('abilityBar'),
+  document.querySelector('.bar.hp'),
+  document.querySelector('.mini-bar.hp'),
+];
+
+function isPlayerUnderOverlay(overlayEl) {
+  if (!overlayEl || !window.player) return false;
+  const rect = overlayEl.getBoundingClientRect();
+  // Player position in screen coordinates
+  const px = player.x, py = player.y;
+  // Convert player world position to screen (canvas) coordinates
+  const canvas = document.getElementById('game');
+  if (!canvas) return false;
+  const crect = canvas.getBoundingClientRect();
+  // Assume player.x/y are in world, and game is centered on player
+  // Project player to screen: center of canvas
+  const screenX = crect.left + crect.width/2;
+  const screenY = crect.top + crect.height/2;
+  // Check if player center is within overlay rect
+  return (
+    screenX >= rect.left && screenX <= rect.right &&
+    screenY >= rect.top && screenY <= rect.bottom
+  );
+}
+
+function updateOverlayTransparency() {
+  for (const el of overlayElements) {
+    if (!el) continue;
+    if (isPlayerUnderOverlay(el)) {
+      el.classList.add('overlay-transparent');
+    } else {
+      el.classList.remove('overlay-transparent');
+    }
+  }
+}
+
+// Call on every frame
+if (!window._overlayTransparencyPatched) {
+  window._overlayTransparencyPatched = true;
+  const origAnimFrame = window.requestAnimationFrame;
+  function rafPatch(fn) {
+    return function patchedRAF(cb) {
+      return fn(function patchedCb(ts) {
+        updateOverlayTransparency();
+        cb(ts);
+      });
+    };
+  }
+  window.requestAnimationFrame = rafPatch(window.requestAnimationFrame);
+}
 // --- Fix: Reset movement keys on blur/visibilitychange to prevent stuck movement ---
 function resetMovementKeys() {
   if(window.keysDown) {
@@ -752,6 +806,8 @@ window.addEventListener('keydown', (e)=>{
         window._halberdUltKeyHeld = true;
         // Start charge via ability trigger
         if(window.abilityRegistry && window.abilityRegistry.ult && typeof window.abilityRegistry.ult.trigger==='function'){
+          // Set maxCharge to 0.35s for double speed at the start of charging
+          if(window.halberdUlt) window.halberdUlt.maxCharge = 0.35;
           window.abilityRegistry.ult.trigger();
         }
       }
@@ -825,7 +881,7 @@ function releaseHalberdCharge(){
   const hu = window.halberdUlt; if(!hu || hu.state!=='charging') return;
     // compute final charge
   // Schnelleres Aufladen: maxCharge auf 0.7s
-  hu.maxCharge = 0.7;
+  hu.maxCharge = 0.35; // doppelt so schnell voll
   hu.chargeTime = Math.min(hu.maxCharge, (performance.now()-hu.chargeStart)/1000);
   const pct = hu.chargeTime / hu.maxCharge;
   // Mehr Schaden: 5x bis 10x
@@ -940,7 +996,27 @@ function releaseHalberdCharge(){
     }
     return best;
   }
-  // Export für Loop Auto-Execute
+  // --- Halberd Auto-Sweep bei gehaltenem Angriff (Auto-Attack Loop) ---
+  let _halberdAutoAttackInterval = null;
+  window.addEventListener('mousedown', (e)=>{
+    if(e.button===0 && window.weapons && player && player.weaponIndex!=null){
+      const w = window.weapons[player.weaponIndex];
+      if(w && w.id==='halbard'){
+        if(_halberdAutoAttackInterval) clearInterval(_halberdAutoAttackInterval);
+        _halberdAutoAttackInterval = setInterval(()=>{
+          if(document.hasFocus() && !player.dead && typeof window.abilities?.registry?.basic?.trigger==='function'){
+            window.abilities.registry.basic.trigger();
+          }
+        }, 80); // Angriffsgeschwindigkeit ggf. anpassen
+      }
+    }
+  });
+  window.addEventListener('mouseup', (e)=>{
+    if(e.button===0 && _halberdAutoAttackInterval){
+      clearInterval(_halberdAutoAttackInterval);
+      _halberdAutoAttackInterval = null;
+    }
+  });
   window.findDaggerExecuteTarget = findDaggerExecuteTarget;
   window.executeDaggerOnTarget = executeDaggerOnTarget;
   function executeDaggerOnTarget(target){
@@ -1322,10 +1398,13 @@ function releaseHalberdCharge(){
     icon:'🗡️',
     desc:'Auto-Attack (Linke Maus) – Standardangriff. Immer verfügbar.',
     trigger(){
-  // --- HALBERD BOSS HIT COUNTER & BONUS DAMAGE ---
+  // --- HALBERD: Boss-Crit und globaler Rundumschlag-Zähler ---
   const w = window.weapons && window.player ? window.weapons[window.player.weaponIndex] : null;
   if(w && w.id === 'halbard') {
-    // Für jeden Boss einen individuellen Counter
+  // Rundumschlag-Cooldown (pro Spieler)
+  if(typeof player._halbardSweepCooldown !== 'number') player._halbardSweepCooldown = 0;
+  if(player._halbardSweepCooldown > state.time) return;
+    // Boss-Crit: Jeder 3. Treffer auf einen Boss ist Crit
     if(!player._halbardBossHits) player._halbardBossHits = {};
     let didHitBoss = false;
     for(const e of state.enemies){
@@ -1336,29 +1415,64 @@ function releaseHalberdCharge(){
         didHitBoss = true;
         // Prüfe ob 3. Treffer
         let bonus = 1;
-        if(player._halbardBossHits[bossId] % 3 === 0) bonus = 5;
-        // Rundumschlag-Logik (wie Ult, aber für jeden Angriff)
-        const sid = ++state._sweepId;
-        const sweep = {
-          id: sid,
-          startTime: state.time,
-          dur: 0.8,
-          angle: 0,
-          targetAngle: Math.PI*2,
-          radius: 320,
-          width: 66,
-          color: '#ffb347',
-          dmg: Math.round(player.dmg * (w.dmgMul || 1) * bonus), // 500% (5x) bei jedem 3. Treffer
-          age: 0,
-          weaponIndex:player.weaponIndex,
-          isHalberdUlt: true
-        };
-        state.sweeps.push(sweep);
-        if(window.playSound) window.playSound('ult_sweep');
+        let isCrit = false;
+        if(player._halbardBossHits[bossId] % 3 === 0) {
+          bonus = 5;
+          isCrit = true;
+        }
+        let dmg = Math.round(player.dmg * (w.dmgMul || 1) * bonus);
+        // Extra-DMG am Boss um 60% reduzieren
+        if(e.boss && bonus > 1) dmg = Math.round(dmg * 0.4);
+        e.hp -= dmg;
+        e.hitFlash = 0.32;
+        if(typeof window.addDamageFloater==='function'){
+          window.addDamageFloater({x:e.x, y:e.y-(e.r||24), amount:dmg, type:'basic', crit:isCrit});
+        }
+        if(e.hp<=0){ if(e.boss) handleBossPhaseAfterDamage(e, state.enemies.indexOf(e)); else killEnemy(state.enemies.indexOf(e), e); }
         break; // Nur einen Boss pro Angriff treffen
       }
     }
     if(didHitBoss) return;
+
+    // Globaler Rundumschlag: Jeder 4. Gesamttreffer (egal auf wen)
+    if(typeof player._halbardGlobalHits !== 'number') player._halbardGlobalHits = 0;
+    let didHit = false;
+    for(const e of state.enemies){
+      if(e && e.hp>0 && Math.hypot(e.x-player.x, e.y-player.y)<(w.range||90)+(e.r||0)) {
+        player._halbardGlobalHits++;
+        didHit = true;
+        let dmg = Math.round(player.dmg * (w.dmgMul || 1));
+        e.hp -= dmg;
+        e.hitFlash = 0.32;
+        if(typeof window.addDamageFloater==='function'){
+          window.addDamageFloater({x:e.x, y:e.y-(e.r||24), amount:dmg, type:'basic', crit:false});
+        }
+        if(e.hp<=0){ if(e.boss) handleBossPhaseAfterDamage(e, state.enemies.indexOf(e)); else killEnemy(state.enemies.indexOf(e), e); }
+  // Rundumschlag-Logik nach jedem 8. Treffer, aber nur wenn kein Cooldown
+  if(player._halbardGlobalHits % 8 === 0 && player._halbardSweepCooldown <= state.time){
+          const sid = ++state._sweepId;
+          const sweep = {
+            id: sid,
+            startTime: state.time,
+            dur: 0.8,
+            angle: 0,
+            targetAngle: Math.PI*2,
+            radius: 320,
+            width: 66,
+            color: '#ffb347',
+            dmg: dmg,
+            age: 0,
+            weaponIndex:player.weaponIndex,
+            isHalberdUlt: true
+          };
+          state.sweeps.push(sweep);
+          if(window.playSound) window.playSound('ult_sweep');
+          player._halbardSweepCooldown = state.time + 3.0; // 3 Sekunden Cooldown
+        }
+        break; // Nur ein Gegner pro Angriff treffen
+      }
+    }
+    if(didHit) return;
   }
       // ...sonst Standardangriff...
       // Halberd: Nach Evolution werden alle Angriffe zu Rundumschlägen
@@ -3609,8 +3723,7 @@ function updateActionKeyUI(dt){
       else if(milestone === 25) { w.dmgMul *= 1.25; w.range += 10; }
     }
   },
-  { id:'halbard', name:'Halbarde', type:'slash', color:'#3be67a', dmgMul:5.0, range:86, arc:2.2, cooldown:0.55, lvl:1, xp:0, next:110, evolveLevel:3, evolved:false,
-    evolve(w){ w.evolved=true; w.name='Dämmerbrecher'; w.knock=300; w.dmgMul*=1.2; },
+  { id:'halbard', name:'Halbarde', type:'slash', color:'#3be67a', dmgMul:5.0, range:86, arc:2.2, cooldown:0.55, lvl:1, xp:0, next:110, evolveLevel:5, evolved:false,
     onLevel(w){ w.dmgMul*=1.10; w.range+=6; w.cooldown*=0.97; },
     onUpgrade(w, milestone) {
       if(milestone === 15) { w.knock = (w.knock||300) + 100; w.dmgMul *= 1.15; }

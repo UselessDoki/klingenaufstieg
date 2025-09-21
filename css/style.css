@@ -1,3 +1,9 @@
+/* Overlay transparency for when player is underneath */
+.overlay-transparent, .hud.overlay-transparent, #newTopHud.overlay-transparent, #abilityBar.overlay-transparent, .bar.hp.overlay-transparent, .mini-bar.hp.overlay-transparent {
+  opacity: 0.35 !important;
+  pointer-events: none;
+  transition: opacity 0.25s;
+}
  /* Verhindert zufälliges Markieren von Text in UI-Elementen */
 .panel, .overlay, .loot-msg, .labels, .hud, .hud *, .buffs, .tag, #gameOverScore, #charInfoBox, #startMenu, #pauseOverlay, #gameOver, #mainMenuBtn, #resumeBtn, #restartBtn1, #forceTestModeBtn {
   user-select: none;
