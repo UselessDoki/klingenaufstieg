@@ -824,9 +824,12 @@ window.addDamageFloater = function addDamageFloater(opts){
 function releaseHalberdCharge(){
   const hu = window.halberdUlt; if(!hu || hu.state!=='charging') return;
     // compute final charge
+  // Schnelleres Aufladen: maxCharge auf 0.7s
+  hu.maxCharge = 0.7;
   hu.chargeTime = Math.min(hu.maxCharge, (performance.now()-hu.chargeStart)/1000);
   const pct = hu.chargeTime / hu.maxCharge;
-  hu.finalMultiplier = 3 + 2 * pct; // 3.0 -> 5.0
+  // Mehr Schaden: 5x bis 10x
+  hu.finalMultiplier = 5 + 5 * pct; // 5.0 -> 10.0
   const radius = 240 + 160 * pct; // 240 -> 400 radius scaling
   if(!state.sweeps) state.sweeps = [];
   const sid = (state._sweepId = (state._sweepId||0)+1);
@@ -1319,59 +1322,44 @@ function releaseHalberdCharge(){
     icon:'🗡️',
     desc:'Auto-Attack (Linke Maus) – Standardangriff. Immer verfügbar.',
     trigger(){
-  // --- NEUE HALBERD AUTO-SWEEP ANIMATION ---
-  console.log('[DEBUG] basic.trigger() aufgerufen');
+  // --- HALBERD BOSS HIT COUNTER & BONUS DAMAGE ---
   const w = window.weapons && window.player ? window.weapons[window.player.weaponIndex] : null;
   if(w && w.id === 'halbard') {
-        // Nur echte Treffer zählen -> Hit Counter
-        if(typeof player._halberdHitCount !== 'number') player._halberdHitCount = 0;
-        // Prüfe Treffer
-        let hit = false;
-        for(const e of state.enemies){
-          if(e.hp>0 && Math.hypot(e.x-player.x, e.y-player.y)<(w.range||90)+(e.r||0)) { hit = true; break; }
-        }
-        if(hit) {
-          player._halberdHitCount++;
-          // Debug optional
-          // console.log('[DEBUG] Halberd Hit Count:', player._halberdHitCount);
-          if(player._halberdHitCount >= 30) {
-            player._halberdHitCount = 0;
-            // console.log('[DEBUG] Halberd SWEEP ausgelöst (30 Treffer)!');
-            // EXTREM SICHTBARE SWEEP-ANIMATION!
-            if(window.swordSpin && window.swordSpin.config) window.swordSpin.config.camShake = 48;
-            window._halberdUltShake = 2.2;
-            for(let i=0;i<60;i++) particle(player.x + (Math.random()-0.5)*220, player.y + (Math.random()-0.5)*220, 'rgba(255,255,80,0.95)');
-            for(let i=0;i<40;i++) particle(player.x + (Math.random()-0.5)*340, player.y + (Math.random()-0.5)*340, 'rgba(255,255,255,0.95)');
-            if(!state.sweeps) state.sweeps=[];
-            const sid = ++state._sweepId;
-            // EXAKT wie Ult-Phase 2 (Rundumangriff)
-            const sweep = {
-              id: sid,
-              startTime: state.time,
-              dur: 0.8, // wie Ult-Phase 2
-              angle: 0,
-              targetAngle: Math.PI*2,
-              radius: 320,
-              width: 66,
-              color: '#ffb347', // wie Ult-Phase 2
-              dmg: Math.round(player.dmg * (w.dmgMul || 1) * 10.0), // 1000% (10x) damage for Halberd R
-              age: 0,
-              weaponIndex:player.weaponIndex,
-              isHalberdUlt: true // MARKIERT als Ult-Sweep für Spezial-Render
-            };
-            state.sweeps.push(sweep);
-            const range = 440;
-            for(const e of state.enemies){
-              if(e.hp>0 && Math.hypot(e.x-player.x, e.y-player.y)<range+(e.r||0)){
-                for(let p=0;p<14;p++) particle(e.x+(Math.random()-0.5)*e.r*2.2, e.y+(Math.random()-0.5)*e.r*2.2, 'rgba(255,255,80,0.95)');
-                e.hitFlash = 0.32;
-              }
-            }
-            if(window.playSound) window.playSound('ult_sweep');
-          }
-        }
-        return;
+    // Für jeden Boss einen individuellen Counter
+    if(!player._halbardBossHits) player._halbardBossHits = {};
+    let didHitBoss = false;
+    for(const e of state.enemies){
+      if(e && e.hp>0 && e.boss && Math.hypot(e.x-player.x, e.y-player.y)<(w.range||90)+(e.r||0)) {
+        const bossId = e._uniqueId || (e._uniqueId = Math.random().toString(36).slice(2));
+        if(!player._halbardBossHits[bossId]) player._halbardBossHits[bossId] = 0;
+        player._halbardBossHits[bossId]++;
+        didHitBoss = true;
+        // Prüfe ob 3. Treffer
+        let bonus = 1;
+        if(player._halbardBossHits[bossId] % 3 === 0) bonus = 5;
+        // Rundumschlag-Logik (wie Ult, aber für jeden Angriff)
+        const sid = ++state._sweepId;
+        const sweep = {
+          id: sid,
+          startTime: state.time,
+          dur: 0.8,
+          angle: 0,
+          targetAngle: Math.PI*2,
+          radius: 320,
+          width: 66,
+          color: '#ffb347',
+          dmg: Math.round(player.dmg * (w.dmgMul || 1) * bonus), // 500% (5x) bei jedem 3. Treffer
+          age: 0,
+          weaponIndex:player.weaponIndex,
+          isHalberdUlt: true
+        };
+        state.sweeps.push(sweep);
+        if(window.playSound) window.playSound('ult_sweep');
+        break; // Nur einen Boss pro Angriff treffen
       }
+    }
+    if(didHitBoss) return;
+  }
       // ...sonst Standardangriff...
       // Halberd: Nach Evolution werden alle Angriffe zu Rundumschlägen
       if (w && w.id === 'halbard' && w.evolved) {
