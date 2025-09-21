@@ -34,7 +34,8 @@
   <div id="nextStartInfo" style="display:none;position:fixed;bottom:24px;right:24px;z-index:99999;background:#23232a;padding:12px 22px 10px 22px;border-radius:12px;box-shadow:0 2px 12px #000a;color:#d5c437;font-size:1.15em;font-weight:bold;text-shadow:0 2px 8px #000b,0 0 8px #d5c43766;pointer-events:none;user-select:none;">
     Nächster Start: -
   </div>
-  <button id="forceTestModeBtn" style="position:fixed;top:220px;left:12px;z-index:99999;font-size:1.2rem;padding:8px 18px;border-radius:8px;background:#333;color:#fff;font-weight:bold;box-shadow:0 0 8px #000a;transition:background 0.2s,box-shadow 0.2s;">Test Modus</button>
+  <!-- Test mode button hidden in production -->
+  <!-- Testmodus-Button entfernt -->
   <div class="overlay" id="pauseOverlay" style="z-index:99999;">
     <div class="panel" style="background:rgba(24,18,38,0.98);border-radius:22px;box-shadow:0 8px 48px #000b;padding:36px 32px 28px 32px;display:flex;flex-direction:column;align-items:center;gap:18px;min-width:340px;max-width:90vw;">
       <div style="display:flex;align-items:center;gap:12px;">
@@ -94,7 +95,8 @@
       <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
   <input id="playerNameInputStart" type="text" maxlength="16" placeholder="Dein Name" style="font-size:1.2em;padding:8px 16px;border-radius:8px;border:1px solid #aaa;margin-bottom:8px;max-width:220px;text-align:center;">
   <button id="startBtn" disabled style="padding:14px 32px;border-radius:10px;background:#7a38e1;color:#fff;font-weight:900;cursor:pointer;border:0;font-size:1.35em;letter-spacing:1px;box-shadow:0 2px 12px #7a38e188,0 0 0 #0000;margin-bottom:2px;">Start</button>
-    <button id="testBossBtn" style="padding:12px 28px;border-radius:10px;background:#38e1d7;color:#222;font-weight:900;cursor:pointer;border:0;font-size:1.15em;letter-spacing:1px;box-shadow:0 2px 12px #38e1d788,0 0 0 #0000;margin-bottom:2px;">Testmodus: Boss-Debug</button>
+  <!-- Test boss debug hidden in production -->
+  <!-- Test-Boss-Debug-Button entfernt -->
     <div id="weaponTooltip" style="min-width:220px;padding:8px 12px;border-radius:6px;background:#111;border:1px solid #333;color:#fff;display:none;">Waffe Info</div>
       </div>
     </div>
@@ -871,11 +873,20 @@ if(window.onTestModeToggle) {
 }
 setInterval(updateTestModeIndicator, 1000);
 
-document.getElementById('forceTestModeBtn').onclick = function() {
-  window.TESTMODE = !window.TESTMODE;
-  if(typeof onTestModeToggle === 'function') onTestModeToggle(window.TESTMODE);
-  updateTestModeIndicator();
-}
+// Make the Test Mode toggle inert and lock TESTMODE to false in production
+try{
+  var _fBtn = document.getElementById('forceTestModeBtn');
+  if(_fBtn){ _fBtn.onclick = function(e){ e.preventDefault(); return false; }; _fBtn.style.pointerEvents='none'; }
+}catch(e){}
+// Prevent other scripts from changing TESTMODE
+try{
+  Object.defineProperty(window, 'TESTMODE', {
+    configurable: false,
+    enumerable: true,
+    get: function(){ return false; },
+    set: function(v){ console.warn('TESTMODE change ignored in production build.'); }
+  });
+}catch(e){ /* ignore if property can't be redefined */ }
 </script>
 
 
