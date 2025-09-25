@@ -34,8 +34,6 @@
   <div id="nextStartInfo" style="display:none;position:fixed;bottom:24px;right:24px;z-index:99999;background:#23232a;padding:12px 22px 10px 22px;border-radius:12px;box-shadow:0 2px 12px #000a;color:#d5c437;font-size:1.15em;font-weight:bold;text-shadow:0 2px 8px #000b,0 0 8px #d5c43766;pointer-events:none;user-select:none;">
     Nächster Start: -
   </div>
-  <!-- Test mode button hidden in production -->
-  <!-- Testmodus-Button entfernt -->
   <div class="overlay" id="pauseOverlay" style="z-index:99999;">
     <div class="panel" style="background:rgba(24,18,38,0.98);border-radius:22px;box-shadow:0 8px 48px #000b;padding:36px 32px 28px 32px;display:flex;flex-direction:column;align-items:center;gap:18px;min-width:340px;max-width:90vw;">
       <div style="display:flex;align-items:center;gap:12px;">
@@ -95,25 +93,13 @@
       <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
   <input id="playerNameInputStart" type="text" maxlength="16" placeholder="Dein Name" style="font-size:1.2em;padding:8px 16px;border-radius:8px;border:1px solid #aaa;margin-bottom:8px;max-width:220px;text-align:center;">
   <button id="startBtn" disabled style="padding:14px 32px;border-radius:10px;background:#7a38e1;color:#fff;font-weight:900;cursor:pointer;border:0;font-size:1.35em;letter-spacing:1px;box-shadow:0 2px 12px #7a38e188,0 0 0 #0000;margin-bottom:2px;">Start</button>
-  <!-- Test boss debug hidden in production -->
-  <!-- Test-Boss-Debug-Button entfernt -->
     <div id="weaponTooltip" style="min-width:220px;padding:8px 12px;border-radius:6px;background:#111;border:1px solid #333;color:#fff;display:none;">Waffe Info</div>
       </div>
     </div>
-  <!-- Boss-Debug-Overay -->
-  <div id="bossDebugOverlay" style="position:fixed;top:16px;right:16px;z-index:99999;background:#23232a;padding:14px 18px 10px 18px;border-radius:10px;box-shadow:0 2px 12px #000a;color:#fff;display:none;min-width:220px;font-size:16px;line-height:1.5;">
-    <div id="bossDebugTitle" style="font-weight:bold;font-size:18px;margin-bottom:6px;">Boss-Debug</div>
-    <div id="bossDebugDmg">Schaden: 0</div>
-    <div id="bossDebugBuffs">Buffs: -</div>
-    <div id="bossDebugDebuffs">Debuffs: -</div>
-  <div id="bossDebugLog" style="margin-top:8px;font-size:14px;max-height:120px;overflow-y:auto;background:#18181c;border-radius:6px;padding:6px 8px 4px 8px;"></div>
-    <button id="bossAttackBtn" style="margin-top:8px;">Boss greift an</button>
-  </div>
   </div>
 
   <canvas id="game"></canvas>
   <div class="hud">
-    <button id="testModeBtn" style="position:fixed;top:8px;right:8px;z-index:1000;padding:8px 16px;border-radius:8px;background:#38e1d7;color:#222;font-weight:bold;cursor:pointer;display:none;">Test Mode: AUS</button>
     <div style="position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:2000;display:flex;flex-direction:column;align-items:center;width:420px;max-width:90vw;gap:8px;">
   <!-- Alte große HP-Leiste ausgeblendet (ersetzt durch neue Mini-HP-Bar im neuen HUD) -->
   <div class="bar hp" style="display:none;position:relative;width:440px;min-width:320px;max-width:540px;margin-top:64px;height:32px;">
@@ -458,7 +444,7 @@
     // Sanity Check: Falls script.js NICHT geladen wurde (z.B. 404), Hinweis anzeigen
     window.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => {
-        if(!window.state || !window.player) {
+        if(!window.__mainScriptLoaded) {
           const warn = document.createElement('div');
           warn.style.position='fixed';
           warn.style.inset='0';
@@ -844,51 +830,6 @@
   </script>
   <script src="./js/score.js"></script>
   <script src="./js/spritePreview.js"></script>
-
-<script>
-</script>
-
-<script>
-function updateTestModeIndicator() {
-  var btn = document.getElementById('forceTestModeBtn');
-  if(!btn) return;
-  btn.textContent = 'Test Modus';
-  if(window.TESTMODE) {
-    btn.style.background = '#c00';
-    btn.style.color = '#fff';
-    btn.style.boxShadow = '0 0 18px 4px #f00,0 0 2px #000';
-  } else {
-    btn.style.background = '#333';
-    btn.style.color = '#fff';
-    btn.style.boxShadow = '0 0 8px #000a';
-  }
-}
-if(window.TESTMODE !== undefined) updateTestModeIndicator();
-if(window.onTestModeToggle) {
-  var orig = window.onTestModeToggle;
-  window.onTestModeToggle = function(active) {
-    orig(active);
-    updateTestModeIndicator();
-  }
-}
-setInterval(updateTestModeIndicator, 1000);
-
-// Make the Test Mode toggle inert and lock TESTMODE to false in production
-try{
-  var _fBtn = document.getElementById('forceTestModeBtn');
-  if(_fBtn){ _fBtn.onclick = function(e){ e.preventDefault(); return false; }; _fBtn.style.pointerEvents='none'; }
-}catch(e){}
-// Prevent other scripts from changing TESTMODE
-try{
-  Object.defineProperty(window, 'TESTMODE', {
-    configurable: false,
-    enumerable: true,
-    get: function(){ return false; },
-    set: function(v){ console.warn('TESTMODE change ignored in production build.'); }
-  });
-}catch(e){ /* ignore if property can't be redefined */ }
-</script>
-
 
 <script>
 function updateSpritePreview() {
