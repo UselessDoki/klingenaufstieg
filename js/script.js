@@ -642,124 +642,10 @@ window.updateCharacterNameHUD = function updateCharacterNameHUDPatched() {
     lootBar.innerHTML = lootHtml;
   }
 }
-let bossDebugActive = false;
-let bossDebugLastHp = 0;
-let bossDebugLogArr = [];
-function setupTestBoss() {
-  
-  state.enemies = [];
-  
-  const spawnX = typeof player !== 'undefined' ? player.x : innerWidth/2;
-  const spawnY = typeof player !== 'undefined' ? player.y - 180 : innerHeight/2 - 100;
-  const boss = {
-    x: spawnX + 30, 
-    y: spawnY - 50, 
-    r: 80, 
-    hp: 20000,
-    maxHp: 20000,
-    dmg: 40,
-    boss: true,
-    name: 'Kristof',
-    elite: true,
-    lastHitId: -1,
-    type: 'runner',
-    shootTimer: 1.6,
-    speed: 90,
-    buffs: [],
-    debuffs: [],
-    dmgTaken: 0,
-    lastHp: 20000,
-    knockbackVX: 0,
-    knockbackVY: 0,
-    hitCooldown: 0
-  };
-  state.enemies.push(boss);
-  state.kristof = boss; // Referenz für Shockwave / Testmodus
-  bossDebugLastHp = boss.hp;
-}
-
-window.addEventListener('DOMContentLoaded', ()=>{
-  const btn = document.getElementById('testBossBtn');
-  if(btn) btn.onclick = function(ev) {
-    const sm = document.getElementById('startMenu'); if(sm) sm.classList.remove('show');
-    TESTMODE_BOSS = true;
-    bossDebugActive = true;
-    state.running = true;
-    state.lastTime = performance.now();
-    if(ev && ev.shiftKey){
-      // Legacy Dummy Boss
-      setupTestBoss();
-    } else {
-      startKristofTestMode();
-    }
-    const ov = document.getElementById('bossDebugOverlay'); if(ov) ov.style.display = 'block';
-  };
-  const atkBtn = document.getElementById('bossAttackBtn');
-  if(atkBtn) atkBtn.onclick = function() {
-    if(state.enemies.length) state.enemies[0].canAttack = true;
-  };
-});
-
-// Falls der Testmodus-Button aus irgendeinem Grund nicht im DOM ist oder ausgeblendet wurde, rekonstruiere ihn.
-(function ensureTestBossButton(){
-  function inject(){
-    let btn = document.getElementById('testBossBtn');
-    if(!btn){
-      const startMenu = document.getElementById('startMenu');
-      if(!startMenu) return false;
-      const panel = startMenu.querySelector('.panel');
-      if(!panel) return false;
-      // Füge unterhalb des Start-Buttons ein
-      const container = panel.querySelector('button#startBtn')?.parentElement || panel;
-      btn = document.createElement('button');
-      btn.id = 'testBossBtn';
-      btn.textContent = 'Testmodus: Kristof';
-      btn.style.padding = '12px 28px';
-      btn.style.borderRadius = '10px';
-      btn.style.background = '#38e1d7';
-      btn.style.color = '#222';
-      btn.style.fontWeight = '900';
-      btn.style.cursor = 'pointer';
-      btn.style.border = '0';
-      btn.style.fontSize = '1.05em';
-      btn.style.letterSpacing = '1px';
-      btn.style.boxShadow = '0 2px 12px #38e1d788,0 0 0 #0000';
-      container.appendChild(btn);
-    }
-    // Sichtbar & aktiv erzwingen
-    btn.disabled = false;
-    btn.style.display = 'inline-block';
-    if(!btn._wired){
-      btn._wired = true;
-      btn.addEventListener('click', (ev)=>{
-        const sm = document.getElementById('startMenu'); if(sm) sm.classList.remove('show');
-        TESTMODE_BOSS = true;
-        bossDebugActive = true;
-        state.running = true;
-        state.lastTime = performance.now();
-        if(ev && ev.shiftKey){
-          setupTestBoss();
-        } else {
-          startKristofTestMode();
-        }
-        const ov = document.getElementById('bossDebugOverlay'); if(ov) ov.style.display = 'block';
-      });
-    }
-    return true;
-  }
-  // Mehrere Versuche (falls Startmenü verzögert aufgebaut wird)
-  let tries = 0;
-  const int = setInterval(()=>{
-    if(inject() || ++tries>15){ clearInterval(int); }
-  }, 200);
-})();
-
-// Shortcut: Im Startmenü taste "B" für Boss-Testmodus (Kristof) sofort
 window.addEventListener('keydown', (e)=>{
   // Wenn ein Eingabefeld (input, textarea oder contenteditable) fokussiert ist, keine Hotkeys ausführen
   const active = document.activeElement;
   if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
-  // Testmodus per Taste B im Startmenü ist deaktiviert!
   // R für Halberd Ult NICHT mehr auf keydown auslösen!
   if(e.key === 'r' || e.key === 'R'){
     if(e.shiftKey && typeof window.forceSpin==='function'){ window.forceSpin(); return; }
@@ -1537,99 +1423,6 @@ function releaseHalberdCharge(){
   window.addEventListener('contextmenu', e=>{ const b=getBindingByKey('rmb'); if(b){ e.preventDefault(); dispatchAbility(b.ability); } });
 })();
 
-const origLoop = typeof loop === 'function' ? loop : null;
-let bossDebugLoopInjected = false;
-function bossDebugLoopWrapper() {
-  if(bossDebugActive && state.enemies.length) {
-    const boss = state.enemies[0];
-    const dmg = Math.max(0, bossDebugLastHp - boss.hp);
-    if(dmg > 0) {
-      const ts = new Date().toLocaleTimeString('de-DE',{hour12:false}).split(':').slice(1).join(':');
-      bossDebugLogArr.unshift(`[${ts}] -${dmg} HP`);
-      if(bossDebugLogArr.length > 10) bossDebugLogArr.length = 10;
-    }
-    bossDebugLastHp = boss.hp;
-    document.getElementById('bossDebugDmg').textContent = 'Schaden: ' + dmg;
-    document.getElementById('bossDebugBuffs').textContent = 'Buffs: ' + (boss.buffs && boss.buffs.length ? boss.buffs.join(', ') : '-');
- 
-    let debuffs = boss.debuffs && boss.debuffs.length ? boss.debuffs.slice() : [];
-    if(boss.daggerDot && boss.daggerDot.active && typeof boss.daggerDot.t === 'number' && typeof boss.daggerDot.dur === 'number' && boss.daggerDot.t < boss.daggerDot.dur) {
-      const rest = Math.max(0, boss.daggerDot.dur - boss.daggerDot.t).toFixed(1);
-      debuffs.push('DoT (' + rest + 's)');
-    }
-    document.getElementById('bossDebugDebuffs').textContent = 'Debuffs: ' + (debuffs.length ? debuffs.join(', ') : '-');
-    document.getElementById('bossDebugLog').innerHTML = bossDebugLogArr.map(e=>`<div>${e}</div>`).join('');
-  }
-  if(origLoop) origLoop();
-}
-if(typeof loop === 'function' && !bossDebugLoopInjected) {
-  bossDebugLoopInjected = true;
-  window.loop = bossDebugLoopWrapper;
-}
-
-// Kristof Test Mode (vollständiger Boss mit aktuellen Mechaniken)
-function startKristofTestMode(){
-  state.enemies = [];
-  state.projectiles = [];
-  state.shockwaves = [];
-  state.kristofKillsLeft = 0;
-  // Boost player + weapons for meaningful test damage
-  try {
-    if(typeof player !== 'undefined') {
-      player.level = 15;
-      player.xp = getXPCum ? getXPCum(15) : 0;
-      player.next = getXPReq ? getXPReq(16) : player.next;
-      // Recompute derived stats
-  // Test Boss Mode: erhöhter Basis-Schaden für schnellere Tests
-  if(typeof player.baseDamage === 'number') player.baseDamage = 100; else player.baseDamage = 100;
-      if(player.baseDamage != null && player.damagePerLevel != null){
-        player.dmg = player.baseDamage + (player.level - 1) * player.damagePerLevel;
-      }
-      player.maxHp = Math.max(player.maxHp || 1, 600 + player.level * 40);
-      player.hp = player.maxHp;
-    }
-    if(Array.isArray(weapons)){
-      const targetWeaponLevel = 20;
-      for(const w of weapons){
-        if(!w) continue;
-        const startLevel = w.lvl || 1;
-        if(startLevel < targetWeaponLevel){
-          for(let L=startLevel+1; L<=targetWeaponLevel; L++){
-            w.lvl = L;
-            // Evolve genau auf evolveLevel
-            if(w.evolveLevel && L === w.evolveLevel && typeof w.evolve === 'function' && !w.evolved){
-              try { w.evolve(w); } catch(_e){}
-            }
-            if(typeof w.onLevel === 'function') { try { w.onLevel(w); } catch(_e){} }
-            if(L > 10 && L % 10 === 0 && typeof w.onUpgrade === 'function') { try { w.onUpgrade(w, L); } catch(_e){} }
-          }
-        }
-        // Falls schon höher, unverändert lassen
-        if(w.evolveLevel && w.lvl >= w.evolveLevel && typeof w.evolve === 'function' && !w.evolved){
-          try { w.evolve(w); } catch(_e){}
-        }
-        if(getXPReq) w.next = getXPReq(w.lvl+1);
-        if('xp' in w) w.xp = 0; // reset progress bar
-      }
-    }
-    if(typeof buildUI === 'function') buildUI();
-    if(typeof updateHUD === 'function') updateHUD();
-  } catch(_ignore){}
-  // spawnKristof() deaktiviert (kein automatischer Kristof-Spawn beim Start)
-  // spawnKristof();
-  const k = state.enemies.find(e=>e.boss && e.name==='Kristof');
-  if(k && player){
-    // Spawn deutlich oberhalb & leicht seitlich, nicht im Spieler
-    k.x = player.x + 100;
-    k.y = player.y - 260; // höher
-    k.hp = k.maxHp;
-  }
-  // (Aufräumung) Debug-Hinweis für Kristof Testmodus entfernt
-}
-
-// Tastenkürzel: K respawned Kristof in Testmodus
-window.addEventListener('keydown', e=>{ if((e.key==='k'||e.key==='K') && TESTMODE_BOSS){ startKristofTestMode(); } });
-
 function particle(x, y, color = '#fff') {
   state.particles.push({ x, y, color, life: 0.7 + Math.random()*0.5, vx: (Math.random()-0.5)*80, vy: (Math.random()-0.5)*80 });
 }
@@ -2263,25 +2056,6 @@ function kristofCheckMidHP(k){
   }
 }
 
-// Zusätzliche einfache Kristof-AI im Testmodus, falls normale Loop nicht greift
-setInterval(()=>{
-  // Sicher: TESTMODE_BOSS kann undefiniert sein -> dann einfach nichts tun
-  if(typeof TESTMODE_BOSS==='undefined' || !TESTMODE_BOSS) return;
-  const k = state.kristof; if(!k) return;
-  // Leicht auf Spieler zulaufen
-  if(player){
-    const dx = player.x - k.x; const dy = player.y - k.y; const d = Math.hypot(dx,dy) || 1;
-    const sp = 60; k.x += dx/d * 0.16 * sp; k.y += dy/d * 0.16 * sp;
-  }
-  // Falls noch keine Welle jemals -> forcieren
-  if(k.shockwaveState && !k.shockwaveState.active && !k.shockwaveState.triggered80){
-    kristofStartShockSequence(k);
-  k.shockwaveState.triggered80 = true;
-  }
-}, 500);
-
- 
- 
 function kristofDeathCleanup() {
   
   
@@ -2898,9 +2672,6 @@ function updateDaggerDots(dt) {
           e.hp -= tick;
           if(typeof window.addDamageFloater==='function'){
             window.addDamageFloater({x:e.x, y:e.y-(e.r||24), amount:tick, type:'poison'});
-          }
-          if(TESTMODE_BOSS && e.boss){
-            console.log(`[Boss-Debug] DoT-Tick(Stack${i+1}/${e.daggerDot.stacks.length}): -${tick.toFixed(2)} HP t:${st.t.toFixed(2)}/${st.dur}`);
           }
           // Leichter Gift-Partikel Effekt pro Tick
           if(Math.random()<0.11) particle(e.x + (Math.random()-0.5)*e.r*1.0, e.y + (Math.random()-0.5)*e.r*1.0, 'rgba(60,255,120,0.08)');
@@ -4275,10 +4046,6 @@ window.spawnEnemy = function(type, ...args) {
   if(hpFill) hpFill.style.width = hpP + '%';
   // Ghost (Nachlauf) Logik
   (function(){
-    // Sicherstellen, dass TESTMODE_BOSS existiert, um ReferenceErrors zu vermeiden
-    if(typeof window!== 'undefined' && typeof TESTMODE_BOSS === 'undefined'){
-      window.TESTMODE_BOSS = false;
-    }
     // Fallback Stub: checkChestPickup falls durch Refactor entfernt
     if(typeof window.checkChestPickup !== 'function'){
       window.checkChestPickup = function(){
@@ -4513,6 +4280,17 @@ window.spawnEnemy = function(type, ...args) {
       buildUI();
     }
 
+    const WEAPON_COMBO_RESET_TIME = 0.9;
+    function advanceWeaponComboState(weapon, now){
+      if(!weapon) return 1;
+      if(weapon.lastComboTime == null || (now - weapon.lastComboTime) > WEAPON_COMBO_RESET_TIME){
+        weapon.comboStep = 0;
+      }
+      weapon.comboStep = ((weapon.comboStep || 0) % 3) + 1;
+      weapon.lastComboTime = now;
+      return weapon.comboStep;
+    }
+
     function triggerAttack(){
   if(player.cooldown>0) return;
   if(player.canAttack===false) return;
@@ -4564,125 +4342,325 @@ window.spawnEnemy = function(type, ...args) {
       if (character === 'bully' && (w.id === 'sword' || w.id === 'halbard')) {
         if (w.lvl < 25) dmgBuff *= 0.70; else dmgBuff *= 1.40;
       }
-  const cd = Math.max(0.06, w.cooldown * attackSpeedMul * (buffs.cooldown||1) / speedBuff);
+      const cd = Math.max(0.06, w.cooldown * attackSpeedMul * (buffs.cooldown||1) / speedBuff);
       player.cooldown = cd;
-      if(w.id === 'staff') {
-        
-        let count = 1;
-        if(w.lvl >= 10) count = 5;
-        else if(w.lvl >= 7) count = 3;
-        else if(w.lvl >= 3) count = 2;
-  const spread = count > 1 ? 0.18 : 0; 
-        for(let i=0;i<count;i++) {
-          const offset = spread * (i - (count-1)/2);
-          const fireball = {
+      const comboStep = advanceWeaponComboState(w, state.time);
+      const baseRange = w.range * (buffs.range||1);
+      const baseSlashArc = (95 * Math.PI) / 180;
+      const baseHitArc = baseSlashArc * 1.15;
+      const baseDamage = player.dmg * (w.dmgMul || 1) * dmgBuff;
+
+      const pushSlash = (angle, range = baseRange, arc = baseHitArc, options = {}) => {
+        const { duration = 0.16, width = 14, dmgScale, visualOnly, delay = 0, color } = options;
+        const id = ++state._slashId;
+        const slash = {
+          start: state.time + delay,
+          dur: duration,
+          angle,
+          range,
+          arc,
+          color: color || w.color,
+          width,
+          id,
+          weaponIndex: player.weaponIndex,
+          dmgBuff
+        };
+        if(dmgScale != null) slash.dmgScale = dmgScale;
+        if(visualOnly) slash.visualOnly = true;
+        state.slashes.push(slash);
+        return slash;
+      };
+
+      const emitArcParticles = (angle, arc, range, steps = 12, color = '#cccccc') => {
+        if(typeof particle !== 'function') return;
+        if(steps <= 0) steps = 1;
+        const startA = angle - arc/2;
+        const endA = angle + arc/2;
+        for(let i=0;i<=steps;i++){
+          const t = i/steps;
+          const a = startA + (endA - startA) * t;
+          const px = player.x + Math.cos(a) * range;
+          const py = player.y + Math.sin(a) * range;
+          particle(px, py, color);
+        }
+      };
+
+      const addMultiFollowup = (baseSlash, options = {}) => {
+        if(!baseSlash || !w.multi || state.bossAlive) return;
+        const { delay = 0.06, angleOffset = 0.35, scale = 0.5 } = options;
+        const id = ++state._slashId;
+        const follow = Object.assign({}, baseSlash, {
+          id,
+          start: baseSlash.start + delay,
+          angle: baseSlash.angle + angleOffset,
+          width: Math.max(8, (baseSlash.width || 14) * 0.85)
+        });
+        const baseScale = baseSlash.dmgScale != null ? baseSlash.dmgScale : 1;
+        follow.dmgScale = baseScale * scale;
+        state.slashes.push(follow);
+      };
+
+      const applySwordDoubleSlash = (baseSlash) => {
+        if(!baseSlash || w.id !== 'sword' || w.lvl < 3) return;
+        let scale = 0.25;
+        if(w.lvl >= 5) scale = 0.4;
+        if(w.lvl >= 7) scale = 0.5;
+        if(w.lvl >= 10) scale = 0.6;
+        if(w.lvl >= 15) scale = 0.65 + 0.05 * Math.floor((w.lvl-10)/5);
+        if(scale > 2) scale = 2;
+        const id2 = ++state._slashId;
+        const doubleSlash = Object.assign({}, baseSlash, {
+          id: id2,
+          start: baseSlash.start + 0.08,
+          dmgScale: (baseSlash.dmgScale != null ? baseSlash.dmgScale : 1) * scale,
+          angle: baseSlash.angle + 0.13
+        });
+        state.slashes.push(doubleSlash);
+      };
+
+      const dealLineStrikeDamage = (angle, length, width, damageMultiplier = 1, options = {}) => {
+        const knockback = options.knockback || 0;
+        const weaponIndex = options.weaponIndex != null ? options.weaponIndex : player.weaponIndex;
+        const wObj = weapons[weaponIndex];
+        const bossPhaseColor = state.bossPhaseRequiredColor;
+        let hitAny = false;
+        for(let i=state.enemies.length-1; i>=0; i--){
+          const e = state.enemies[i];
+          if(!e) continue;
+          const dx = e.x - player.x;
+          const dy = e.y - player.y;
+          const forward = Math.cos(angle) * dx + Math.sin(angle) * dy;
+          if(forward < -(player.r||10)) continue;
+          if(forward > length + (e.r||0)) continue;
+          const perp = Math.abs(dx * Math.sin(angle) - dy * Math.cos(angle));
+          if(perp > (width/2) + (e.r||0)) continue;
+          let weaponAllowed = true;
+          if(e.weaponRequired){
+            weaponAllowed = !!(wObj && wObj.id === e.weaponRequired);
+          } else if(bossPhaseColor && e.boss){
+            weaponAllowed = !!(wObj && wObj.color === bossPhaseColor);
+          }
+          let damage = baseDamage * damageMultiplier;
+          if(!weaponAllowed){
+            if(e.weaponRequired || (bossPhaseColor && e.boss)){
+              const cfg = window.enemyScalingConfig || {};
+              const factor = e.boss ? (cfg.partialBoss || 0.1) : (cfg.partialNormal || 0.2);
+              damage *= factor;
+            } else {
+              continue;
+            }
+          }
+          if(e.type === 'runner' || e.type === 'brute') damage *= 1.3;
+          if(e.boss){
+            if(e.invulnerable) continue;
+            damage *= (player.bossDamageMul || 1);
+            if(e.dmgReduction) damage *= (1 - e.dmgReduction);
+          }
+          if(e.name === 'Kristof' && e.playerDamageReduction) damage *= (1 - e.playerDamageReduction);
+          e.hp -= damage;
+          if(typeof window.addDamageFloater === 'function'){
+            window.addDamageFloater({ x: e.x, y: e.y - (e.r||24), amount: damage, type: 'basic' });
+          }
+          if(knockback > 0){
+            e.knockbackVX = Math.cos(angle) * knockback;
+            e.knockbackVY = Math.sin(angle) * knockback;
+            e.hitCooldown = Math.max(e.hitCooldown || 0, 0.2);
+          }
+          e.hitFlash = 0.76;
+          setTimeout(() => { e.hitFlash = 0; }, 0);
+          if(e.hp <= 0){
+            if(e.boss) handleBossPhaseAfterDamage(e, i); else killEnemy(i, e, weaponIndex);
+          }
+          hitAny = true;
+        }
+        return hitAny;
+      };
+
+      if(w.id === 'staff'){
+        const baseCount = w.lvl >= 10 ? 5 : (w.lvl >= 7 ? 3 : (w.lvl >= 3 ? 2 : 1));
+        const spawnVolley = (count, spread, damageScale = 1, speed = 520, explodeRadius = 60, pierce = 1) => {
+          if(count <= 0) return;
+          const effectiveSpread = count > 1 ? spread : 0;
+          for(let i=0;i<count;i++){
+            const offset = effectiveSpread * (i - (count-1)/2);
+            const fireball = {
+              x: player.x,
+              y: player.y,
+              vx: Math.cos(ang + offset) * speed,
+              vy: Math.sin(ang + offset) * speed,
+              r: 8,
+              color: '#ff7c1f',
+              type: 'fireball',
+              seed: Math.random()*Math.PI*2,
+              dmg: baseDamage * damageScale,
+              range: 420,
+              traveled: 0,
+              pierce: Math.max(1, pierce),
+              piercedCount: 0,
+              explode: explodeRadius,
+              trail: [],
+              trailColor: true,
+              weaponIndex: player.weaponIndex
+            };
+            state.projectiles.push(fireball);
+          }
+        };
+        if(comboStep === 1){
+          spawnVolley(baseCount, 0.14, 1);
+        } else if(comboStep === 2){
+          spawnVolley(baseCount + 1, 0.22, 0.95);
+        } else {
+          spawnVolley(Math.max(1, baseCount - 1), 0.18, 0.85);
+          const orb = {
             x: player.x,
             y: player.y,
-            vx: Math.cos(ang + offset) * 520,
-            vy: Math.sin(ang + offset) * 520,
-            r: 8, // smaller, crisper fireball radius (was 18)
-            color: '#ff7c1f',
+            vx: Math.cos(ang) * 540,
+            vy: Math.sin(ang) * 540,
+            r: 10,
+            color: '#ff9540',
             type: 'fireball',
             seed: Math.random()*Math.PI*2,
-            dmg: player.dmg * w.dmgMul * (buffs.dmg||1) * dmgBuff,
-            range: 420,
+            dmg: baseDamage * 1.4,
+            range: 520,
             traveled: 0,
-            pierce: 1,
+            pierce: 0,
             piercedCount: 0,
-            explode: 60,
+            explode: 110,
             trail: [],
             trailColor: true,
             weaponIndex: player.weaponIndex
           };
-          state.projectiles.push(fireball);
+          state.projectiles.push(orb);
+          state.aoes.push({ x: player.x, y: player.y, r: baseRange * 1.05, life: 0.4, age: 0, color: '#ff9540' });
         }
-        for(let i=0;i<8;i++) particle(player.x, player.y, '#ffb347');
-        
-        
-        
-        
+        for(let i=0;i<10;i++) particle(player.x, player.y, '#ffb347');
+        return;
       } else if(w.type==='projectile'){
         spawnProjectile(w, ang);
-      } else {
-        // Immer einen Slash erzeugen, egal ob Fred oder Bully
-  const duration = 0.16;
-  const id1=++state._slashId;
-  const visualArc = (95 * Math.PI) / 180; 
-  const hitArc = visualArc * 1.15; 
-  const slash={ start:state.time, dur:duration, angle:fredSlashAngle, range: w.range*(buffs.range||1), arc:hitArc, color:w.color, width:14, id:id1, weaponIndex:player.weaponIndex, dmgBuff: dmgBuff };
-  state.slashes.push(slash);
-  console.log('Slash erzeugt:', { character, weapon: w.id, angle: fredSlashAngle, x: player.x, y: player.y });
-        // Schwert-Doppelschlag ab Level 3
-        if(w.id === 'sword' && w.lvl >= 3) {
-          let scale = 0.25; // 75% weniger
-          if(w.lvl >= 5) scale = 0.4;
-          if(w.lvl >= 7) scale = 0.5;
-          if(w.lvl >= 10) scale = 0.6;
-          if(w.lvl >= 15) scale = 0.65 + 0.05 * Math.floor((w.lvl-10)/5); // ab lvl 15 alle 5 lvl +5%
-          // Cap: max 2x Schaden (200%)
-          if(scale > 2) scale = 2;
-          const id2 = ++state._slashId;
-          const doubleSlash = Object.assign({}, slash, {
-            id: id2,
-            start: state.time + 0.08, // leicht verzögert
-            dmgScale: scale,
-            angle: fredSlashAngle + 0.13 // kleiner Versatz für optischen Effekt
+        return;
+      }
+
+      if(w.id === 'halbard' && w.evolved){
+        const sid = ++state._sweepId;
+        state.sweeps.push({
+          id: sid,
+          startTime: state.time,
+          dur: 0.8,
+          angle: 0,
+          targetAngle: Math.PI*2,
+          radius: Math.max(320, baseRange * 3.4),
+          width: 66,
+          color: '#ffb347',
+          dmg: Math.round(baseDamage),
+          age: 0,
+          weaponIndex: player.weaponIndex,
+          isHalberdUlt: true
+        });
+        if(window.playSound) window.playSound('ult_sweep');
+        return;
+      }
+
+      if(w.id === 'halbard'){
+        if(comboStep === 1){
+          const slash = pushSlash(fredSlashAngle, baseRange * 1.1, baseHitArc * 1.2, { duration: 0.18, width: 16, dmgScale: 1.1, color: w.color });
+          emitArcParticles(fredSlashAngle, baseHitArc * 1.2, baseRange * 1.1, 14, '#d9ffe9');
+          addMultiFollowup(slash, { angleOffset: 0.28, scale: 0.45 });
+        } else if(comboStep === 2){
+          pushSlash(fredSlashAngle, baseRange * 1.35, Math.PI / 5, { duration: 0.14, width: 10, dmgScale: 0.85, color: w.color });
+          emitArcParticles(fredSlashAngle, Math.PI / 5, baseRange * 1.35, 8, '#d9ffe9');
+          dealLineStrikeDamage(fredSlashAngle, baseRange * 1.45, 72, 1.4, { knockback: 260 });
+          hitChestAt(player.x + Math.cos(fredSlashAngle) * baseRange * 1.45, player.y + Math.sin(fredSlashAngle) * baseRange * 1.45);
+        } else {
+          pushSlash(fredSlashAngle, baseRange, baseHitArc * 0.8, { duration: 0.18, visualOnly: true, color: '#d9ffe9' });
+          const sid = ++state._sweepId;
+          state.sweeps.push({
+            id: sid,
+            startTime: state.time,
+            dur: 0.5,
+            angle: 0,
+            targetAngle: Math.PI*2,
+            radius: baseRange * 1.15,
+            width: 62,
+            color: '#d9ffe9',
+            edgeColor: '#3be67a',
+            dmg: baseDamage * 1.5,
+            age: 0,
+            weaponIndex: player.weaponIndex
           });
-          state.slashes.push(doubleSlash);
+          state.aoes.push({ x: player.x, y: player.y, r: baseRange * 1.1, life: 0.45, age: 0, color: '#3be67a' });
         }
-        // Graue Partikel entlang des Arcs (außer bei Stab), für alle Charaktere
-        if(w.id !== 'staff') {
-          const arcStart = fredSlashAngle - hitArc/2;
-          const arcEnd = fredSlashAngle + hitArc/2;
-          const steps = 12;
-          for(let i=0;i<=steps;i++) {
-            const t = i/steps;
-            const angle = arcStart + (arcEnd-arcStart)*t;
-            const px = player.x + Math.cos(angle) * (w.range*(buffs.range||1));
-            const py = player.y + Math.sin(angle) * (w.range*(buffs.range||1));
-            particle(px, py, '#cccccc');
+      } else if(w.id === 'dagger'){
+        if(comboStep === 1){
+          const slash = pushSlash(fredSlashAngle, baseRange * 0.9, baseHitArc * 0.9, { duration: 0.12, width: 12, dmgScale: 0.9, color: w.color });
+          emitArcParticles(fredSlashAngle, baseHitArc * 0.9, baseRange * 0.9, 10, '#f7c948');
+          addMultiFollowup(slash, { angleOffset: 0.22, scale: 0.45, delay: 0.04 });
+        } else if(comboStep === 2){
+          pushSlash(fredSlashAngle - 0.22, baseRange, baseHitArc * 0.75, { duration: 0.12, width: 12, dmgScale: 0.75, color: w.color });
+          pushSlash(fredSlashAngle + 0.22, baseRange, baseHitArc * 0.75, { duration: 0.12, width: 12, dmgScale: 0.75, delay: 0.05, color: w.color });
+          emitArcParticles(fredSlashAngle, baseHitArc, baseRange, 12, '#f7c948');
+        } else {
+          for(let i=0;i<3;i++){
+            const spinAngle = fredSlashAngle + i * (Math.PI * 2 / 3);
+            pushSlash(spinAngle, baseRange * 0.85, Math.PI / 2, { duration: 0.14, width: 12, dmgScale: 0.55, delay: 0.04 * i, color: w.color });
+          }
+          state.aoes.push({ x: player.x, y: player.y, r: baseRange * 0.9, life: 0.3, age: 0, color: '#f7c948' });
+          emitArcParticles(fredSlashAngle, Math.PI * 2, baseRange * 0.85, 18, '#f7c948');
+        }
+      } else if(w.id === 'sword'){
+        if(comboStep === 1){
+          const slash = pushSlash(fredSlashAngle, baseRange, baseHitArc, { duration: 0.16, width: 14, color: w.color });
+          emitArcParticles(fredSlashAngle, baseHitArc, baseRange, 12, '#d7c8ff');
+          addMultiFollowup(slash);
+          applySwordDoubleSlash(slash);
+        } else if(comboStep === 2){
+          pushSlash(fredSlashAngle - 0.3, baseRange * 1.05, baseHitArc * 0.85, { duration: 0.15, width: 15, dmgScale: 1.05, color: w.color });
+          const second = pushSlash(fredSlashAngle + 0.3, baseRange * 1.05, baseHitArc * 0.85, { duration: 0.15, width: 15, dmgScale: 1.05, delay: 0.05, color: w.color });
+          emitArcParticles(fredSlashAngle, baseHitArc, baseRange * 1.05, 14, '#d7c8ff');
+          applySwordDoubleSlash(second);
+        } else {
+          const heavy = pushSlash(fredSlashAngle, baseRange * 1.15, baseHitArc * 1.35, { duration: 0.2, width: 18, dmgScale: 1.35, color: w.color });
+          emitArcParticles(fredSlashAngle, baseHitArc * 1.35, baseRange * 1.15, 18, '#d7c8ff');
+          applySwordDoubleSlash(heavy);
+          state.aoes.push({ x: player.x, y: player.y, r: baseRange * 1.05, life: 0.35, age: 0, color: '#c73be6' });
+        }
+      } else {
+        const slash = pushSlash(fredSlashAngle, baseRange, baseHitArc, { color: w.color });
+        emitArcParticles(fredSlashAngle, baseHitArc, baseRange, 12, '#cccccc');
+        addMultiFollowup(slash);
+      }
+
+      if(w.id === 'dagger'){
+        w.attackCounter = (w.attackCounter || 0) + 1;
+        let hitsNeeded = 10;
+        if(w.lvl >= 3) hitsNeeded = 7;
+        if(w.attackCounter >= hitsNeeded){
+          w.attackCounter = 0;
+          const speed = 900;
+          let numDaggers = 1;
+          if(w.lvl >= 7) numDaggers = 2;
+          for(let d=0; d<numDaggers; d++) {
+            let angle = fredSlashAngle;
+            if(numDaggers === 2) angle += (d === 0 ? -0.12 : 0.12);
+            const proj = {
+              x: player.x,
+              y: player.y,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              r: 10,
+              color: '#f7c948',
+              dmg: 0,
+              range: 700,
+              traveled: 0,
+              pierce: 99,
+              type: 'daggerDotPierce',
+              hitEnemies: new Set(),
+              trail: [],
+              dotDmgBonus: w.lvl >= 10 ? 1.25 : 1.0
+            };
+            state.projectiles.push(proj);
           }
         }
-        if(w.multi && !state.bossAlive){
-          const id2=++state._slashId;
-          const s2=Object.assign({},slash,{ id:id2, angle: fredSlashAngle+0.35, start: state.time+0.06, width:12, dmgScale: 0.5 });
-          state.slashes.push(s2);
-        }
-        // ...Halberd auto-sweep logic removed...
-        // Dolch Spezial: Nach jedem 10. Treffer Projektil mit DoT für alle Gegner in Linie
-        if(w.id === 'dagger'){
-          w.attackCounter = (w.attackCounter || 0) + 1;
-          let hitsNeeded = 10;
-          if(w.lvl >= 3) hitsNeeded = 7;
-          if(w.attackCounter >= hitsNeeded){
-            w.attackCounter = 0;
-            // Projektil(e) erzeugen
-            const speed = 900;
-            let numDaggers = 1;
-            if(w.lvl >= 7) numDaggers = 2;
-            for(let d=0; d<numDaggers; d++) {
-              let angle = fredSlashAngle;
-              if(numDaggers === 2) angle += (d === 0 ? -0.12 : 0.12); // leichter Spread bei 2 Daggers
-              const proj = {
-                x: player.x,
-                y: player.y,
-                vx: Math.cos(angle) * speed,
-                vy: Math.sin(angle) * speed,
-                r: 10,
-                color: '#f7c948',
-                dmg: 0,
-                range: 700,
-                traveled: 0,
-                pierce: 99, // durchdringt alle
-                type: 'daggerDotPierce',
-                hitEnemies: new Set(),
-                trail: [],
-                dotDmgBonus: w.lvl >= 10 ? 1.25 : 1.0
-              };
-              state.projectiles.push(proj);
-            }
-          }
-        }
+      }
       }
     }
 
@@ -5112,26 +5090,6 @@ setTimeout(() => {
 // Startmenü und alte Charakterauswahl entfernt – Spiel startet direkt
   let live = document.getElementById('liveScore');
   if(live) live.style.display = 'none';
-  
-  setTimeout(() => {
-    const btn = document.getElementById('mainMenuBtn');
-    if(btn) {
-      btn.onclick = () => {
-        if(window.gameOverOverlay) window.gameOverOverlay.classList.remove('show');
-        
-               
-        const startMenu = document.getElementById('startMenu');
-        if(startMenu) startMenu.classList.add('show');
-        const charMenu = document.getElementById('characterMenu');
-        if(charMenu) charMenu.style.display = '';
-        const charInfo = document.getElementById('charInfoBox');
-        if(charInfo) charInfo.style.display = 'block';
-        restart();
-        const scoreDiv = document.getElementById('gameOverScore');
-        if(scoreDiv) scoreDiv.textContent = 'Score: 0';
-      };
-    }
-  }, 0);
 
     function angleDiff(a,b){ let d = a - b; while(d > Math.PI) d -= 2*Math.PI; while(d < -Math.PI) d += 2*Math.PI; return d; }
 
@@ -5663,18 +5621,6 @@ let current_hp = phase_hp[0];
   updatePlayerJump(dt);
   if(typeof updatePlayerDash==='function') updatePlayerDash(dt);
   // updateSwordSpin entfernt (Spin deaktiviert)
-      // Boss Test Modus: Erzwinge hohen Schaden (Basis 100) dauerhaft
-      if(TESTMODE_BOSS && typeof player !== 'undefined') {
-        const targetBase = 400; // erhöht für Testmodus
-        if(player.baseDamage == null || player.baseDamage < targetBase) player.baseDamage = targetBase;
-        if(player.damagePerLevel != null) {
-          const desired = player.baseDamage + (player.level - 1) * player.damagePerLevel;
-          if(player.dmg < desired) player.dmg = desired;
-        } else if(player.dmg < targetBase) {
-          player.dmg = targetBase;
-        }
-      }
-  // Testmodus: Logge Boss-Schaden, Debuffs, DoTs in die Konsole
   // Update dagger DoT ticks for all enemies
   updateDaggerDots(dt);
   // Kristof-spezifische Schadens- & Phasenlogik unabhängig von Position im enemies-Array
