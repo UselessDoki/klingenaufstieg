@@ -1,3 +1,6 @@
+// Marker for other layers that the main script finished loading
+window.__mainScriptLoaded = true;
+
 // === Overlay Transparency Logic ===
 // Elements to make transparent when player is underneath
 const overlayElements = [

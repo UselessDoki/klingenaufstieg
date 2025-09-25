@@ -444,7 +444,7 @@
     // Sanity Check: Falls script.js NICHT geladen wurde (z.B. 404), Hinweis anzeigen
     window.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => {
-        if(!window.state || !window.player) {
+        if(!window.__mainScriptLoaded) {
           const warn = document.createElement('div');
           warn.style.position='fixed';
           warn.style.inset='0';
