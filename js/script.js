@@ -4293,11 +4293,10 @@ window.spawnEnemy = function(type, ...args) {
       weapon.lastComboTime = now;
       return weapon.comboStep;
     }
-
     function triggerAttack(){
   if(player.cooldown>0) return;
   if(player.canAttack===false) return;
-      
+
       playerAnim = 'attack';
       playerAnimFrame = 0;
       playerAnimTimer = 0;
@@ -4321,29 +4320,15 @@ window.spawnEnemy = function(type, ...args) {
       
       // Nur permanenter Speedbuff beeinflusst Angriffscooldown; temporärer Q Buff NICHT
       let speedBuff = buffs.speed || 1;
-      let dmgBuff = buffs.dmg || 1;
       if(w.id === 'dagger') {
         speedBuff = 1 + (speedBuff - 1) * 0.75;
-        dmgBuff = 1 + (dmgBuff - 1) * 0.75;
       }
-      
-      // Neue Buff-Regeln:
-      // Fred: +15% Schaden mit Schwert oder Halbarde
-      if (character === 'default' && (w.id === 'sword' || w.id === 'halbard')) {
-        dmgBuff *= 1.15;
-      }
-      // Fred Dagger/Staff Lernkurve: bis Waffen-Lv 25 -30% Schaden, ab 25 +40%
-      if (character === 'default' && (w.id === 'dagger' || w.id === 'staff')) {
-        if (w.lvl < 25) dmgBuff *= 0.70; else dmgBuff *= 1.40;
-      }
+      const dmgBuff = computeWeaponDamageBuff(w);
+
       // Bully: +20% Attack Speed mit Dolch oder Stab (wir reduzieren Cooldown um 20%)
       let attackSpeedMul = 1; // <1 bedeutet schnellerer Cooldown
       if (character === 'bully' && (w.id === 'dagger' || w.id === 'staff')) {
         attackSpeedMul *= 0.80; // 20% schneller
-      }
-      // Bully Sword/Halbard Lernkurve: bis Waffen-Lv 25 -30% Schaden, ab 25 +40%
-      if (character === 'bully' && (w.id === 'sword' || w.id === 'halbard')) {
-        if (w.lvl < 25) dmgBuff *= 0.70; else dmgBuff *= 1.40;
       }
       const cd = Math.max(0.06, w.cooldown * attackSpeedMul * (buffs.cooldown||1) / speedBuff);
       player.cooldown = cd;
@@ -4668,52 +4653,79 @@ window.spawnEnemy = function(type, ...args) {
     }
 
     function spawnProjectile(w, ang){
-  if(w.id === 'bolt'){
-  
-  
-  let lines = Math.min(10, Math.max(1, Math.floor(w.lvl || 1)));
-  
-  if(w.kristof && w.kristofStage) { lines = Math.min(40, lines * Math.max(1, w.kristofStage)); }
-  const count = lines;
-  const baseDmg = player.dmg * w.dmgMul * (buffs.dmg||1) * dmgBuff;
-        const per = baseDmg / Math.sqrt(count);
+      if(!w) return;
+      if(w.id === 'bolt'){
+        let lines = Math.min(10, Math.max(1, Math.floor(w.lvl || 1)));
+        if(w.kristof && w.kristofStage) {
+          lines = Math.min(40, lines * Math.max(1, w.kristofStage));
+        }
+        const count = lines;
+        const dmgBuff = computeWeaponDamageBuff(w);
+        const baseDmg = player.dmg * (w.dmgMul || 1) * dmgBuff;
+        const per = baseDmg / Math.max(1, Math.sqrt(count));
         const speedBase = w.speed || 480;
-        
         const moving = Math.abs(player.vx||0) > 2 || Math.abs(player.vy||0) > 2;
-        
         const centerAng = Math.atan2(mouseY-player.y, mouseX-player.x);
-        
         const baseSpread = moving ? 0.06 : Math.min(1.6, 0.12 * Math.sqrt(count));
         const spread = baseSpread;
         for(let i=0;i<count;i++){
-          
           const slot = (i - (count-1)/2);
           const a = centerAng + (spread * slot) / Math.max(1, (count-1)/2);
           const speed = speedBase;
           const vx = Math.cos(a) * speed;
           const vy = Math.sin(a) * speed;
-          
-          
           const defaultPierce = Math.max(1, Math.floor(count * 0.6));
           const initialPierce = (w.kristof ? (w.kristofStage || 1) : (w.pierce != null ? w.pierce : defaultPierce));
-          const proj = { x:player.x, y:player.y, vx, vy, r:6, color:w.color, dmg: per, range:w.range, traveled:0, pierce: initialPierce, piercedCount: 0, explode:w.explode||0, trail:[], weaponIndex:player.weaponIndex, ricochet: (w.kristof ? (w.kristofStage || 0) : 0) };
+          const proj = {
+            x: player.x,
+            y: player.y,
+            vx,
+            vy,
+            r: 6,
+            color: w.color,
+            dmg: per,
+            range: w.range,
+            traveled: 0,
+            pierce: initialPierce,
+            piercedCount: 0,
+            explode: w.explode || 0,
+            trail: [],
+            weaponIndex: player.weaponIndex,
+            ricochet: (w.kristof ? (w.kristofStage || 0) : 0)
+          };
           state.projectiles.push(proj);
         }
-  particle(player.x,player.y,'#cccccc');
+        if(typeof particle === 'function'){
+          particle(player.x, player.y, '#cccccc');
+        }
         return;
       }
-      const speed=w.speed; const vx=Math.cos(ang)*speed, vy=Math.sin(ang)*speed;
-      // Rekonstruiere dmgBuff analog zu triggerAttack (vereinfachte Wiederholung)
-      let projDmgBuff = 1;
-      if (character === 'default' && (w.id === 'sword' || w.id === 'halbard')) projDmgBuff *= 1.15;
-      if (character === 'default' && (w.id === 'dagger' || w.id === 'staff')) {
-        projDmgBuff *= (w.lvl < 25 ? 0.70 : 1.40);
+
+      const speed = w.speed || 0;
+      const vx = Math.cos(ang) * speed;
+      const vy = Math.sin(ang) * speed;
+      const dmgBuff = computeWeaponDamageBuff(w);
+      const projectileDmg = player.dmg * (w.dmgMul || 1) * dmgBuff;
+      const proj = {
+        x: player.x,
+        y: player.y,
+        vx,
+        vy,
+        r: 6,
+        color: w.color,
+        dmg: projectileDmg,
+        range: w.range,
+        traveled: 0,
+        pierce: w.pierce || 0,
+        explode: w.explode || 0,
+        trail: [],
+        weaponIndex: player.weaponIndex,
+        ricochet: 0
+      };
+      state.projectiles.push(proj);
+      if(typeof particle === 'function'){
+        particle(player.x, player.y, '#cccccc');
       }
-      if (character === 'bully' && (w.id === 'sword' || w.id === 'halbard')) {
-        projDmgBuff *= (w.lvl < 25 ? 0.70 : 1.40);
-      }
-      const proj={ x:player.x, y:player.y, vx, vy, r:6, color:w.color, dmg: player.dmg*w.dmgMul*(buffs.dmg||1)*projDmgBuff, range:w.range, traveled:0, pierce:w.pierce||0, explode:w.explode||0, trail:[] , weaponIndex:player.weaponIndex, ricochet:0};
-  state.projectiles.push(proj); particle(player.x,player.y,'#cccccc');
     }
 
     function spawnWerewolf(){
