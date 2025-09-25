@@ -4293,25 +4293,6 @@ window.spawnEnemy = function(type, ...args) {
       weapon.lastComboTime = now;
       return weapon.comboStep;
     }
-
-    function computeWeaponDamageBuff(weapon){
-      let dmgBuff = buffs.dmg || 1;
-      if(!weapon) return dmgBuff;
-      if(weapon.id === 'dagger'){
-        dmgBuff = 1 + (dmgBuff - 1) * 0.75;
-      }
-      if(character === 'default' && (weapon.id === 'sword' || weapon.id === 'halbard')){
-        dmgBuff *= 1.15;
-      }
-      if(character === 'default' && (weapon.id === 'dagger' || weapon.id === 'staff')){
-        dmgBuff *= weapon.lvl < 25 ? 0.70 : 1.40;
-      }
-      if(character === 'bully' && (weapon.id === 'sword' || weapon.id === 'halbard')){
-        dmgBuff *= weapon.lvl < 25 ? 0.70 : 1.40;
-      }
-      return dmgBuff;
-    }
-
     function triggerAttack(){
   if(player.cooldown>0) return;
   if(player.canAttack===false) return;
@@ -4667,6 +4648,7 @@ window.spawnEnemy = function(type, ...args) {
             state.projectiles.push(proj);
           }
         }
+      }
       }
     }
 
