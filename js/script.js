@@ -642,124 +642,10 @@ window.updateCharacterNameHUD = function updateCharacterNameHUDPatched() {
     lootBar.innerHTML = lootHtml;
   }
 }
-let bossDebugActive = false;
-let bossDebugLastHp = 0;
-let bossDebugLogArr = [];
-function setupTestBoss() {
-  
-  state.enemies = [];
-  
-  const spawnX = typeof player !== 'undefined' ? player.x : innerWidth/2;
-  const spawnY = typeof player !== 'undefined' ? player.y - 180 : innerHeight/2 - 100;
-  const boss = {
-    x: spawnX + 30, 
-    y: spawnY - 50, 
-    r: 80, 
-    hp: 20000,
-    maxHp: 20000,
-    dmg: 40,
-    boss: true,
-    name: 'Kristof',
-    elite: true,
-    lastHitId: -1,
-    type: 'runner',
-    shootTimer: 1.6,
-    speed: 90,
-    buffs: [],
-    debuffs: [],
-    dmgTaken: 0,
-    lastHp: 20000,
-    knockbackVX: 0,
-    knockbackVY: 0,
-    hitCooldown: 0
-  };
-  state.enemies.push(boss);
-  state.kristof = boss; // Referenz für Shockwave / Testmodus
-  bossDebugLastHp = boss.hp;
-}
-
-window.addEventListener('DOMContentLoaded', ()=>{
-  const btn = document.getElementById('testBossBtn');
-  if(btn) btn.onclick = function(ev) {
-    const sm = document.getElementById('startMenu'); if(sm) sm.classList.remove('show');
-    TESTMODE_BOSS = true;
-    bossDebugActive = true;
-    state.running = true;
-    state.lastTime = performance.now();
-    if(ev && ev.shiftKey){
-      // Legacy Dummy Boss
-      setupTestBoss();
-    } else {
-      startKristofTestMode();
-    }
-    const ov = document.getElementById('bossDebugOverlay'); if(ov) ov.style.display = 'block';
-  };
-  const atkBtn = document.getElementById('bossAttackBtn');
-  if(atkBtn) atkBtn.onclick = function() {
-    if(state.enemies.length) state.enemies[0].canAttack = true;
-  };
-});
-
-// Falls der Testmodus-Button aus irgendeinem Grund nicht im DOM ist oder ausgeblendet wurde, rekonstruiere ihn.
-(function ensureTestBossButton(){
-  function inject(){
-    let btn = document.getElementById('testBossBtn');
-    if(!btn){
-      const startMenu = document.getElementById('startMenu');
-      if(!startMenu) return false;
-      const panel = startMenu.querySelector('.panel');
-      if(!panel) return false;
-      // Füge unterhalb des Start-Buttons ein
-      const container = panel.querySelector('button#startBtn')?.parentElement || panel;
-      btn = document.createElement('button');
-      btn.id = 'testBossBtn';
-      btn.textContent = 'Testmodus: Kristof';
-      btn.style.padding = '12px 28px';
-      btn.style.borderRadius = '10px';
-      btn.style.background = '#38e1d7';
-      btn.style.color = '#222';
-      btn.style.fontWeight = '900';
-      btn.style.cursor = 'pointer';
-      btn.style.border = '0';
-      btn.style.fontSize = '1.05em';
-      btn.style.letterSpacing = '1px';
-      btn.style.boxShadow = '0 2px 12px #38e1d788,0 0 0 #0000';
-      container.appendChild(btn);
-    }
-    // Sichtbar & aktiv erzwingen
-    btn.disabled = false;
-    btn.style.display = 'inline-block';
-    if(!btn._wired){
-      btn._wired = true;
-      btn.addEventListener('click', (ev)=>{
-        const sm = document.getElementById('startMenu'); if(sm) sm.classList.remove('show');
-        TESTMODE_BOSS = true;
-        bossDebugActive = true;
-        state.running = true;
-        state.lastTime = performance.now();
-        if(ev && ev.shiftKey){
-          setupTestBoss();
-        } else {
-          startKristofTestMode();
-        }
-        const ov = document.getElementById('bossDebugOverlay'); if(ov) ov.style.display = 'block';
-      });
-    }
-    return true;
-  }
-  // Mehrere Versuche (falls Startmenü verzögert aufgebaut wird)
-  let tries = 0;
-  const int = setInterval(()=>{
-    if(inject() || ++tries>15){ clearInterval(int); }
-  }, 200);
-})();
-
-// Shortcut: Im Startmenü taste "B" für Boss-Testmodus (Kristof) sofort
 window.addEventListener('keydown', (e)=>{
   // Wenn ein Eingabefeld (input, textarea oder contenteditable) fokussiert ist, keine Hotkeys ausführen
   const active = document.activeElement;
   if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
-  // Testmodus per Taste B im Startmenü ist deaktiviert!
   // R für Halberd Ult NICHT mehr auf keydown auslösen!
   if(e.key === 'r' || e.key === 'R'){
     if(e.shiftKey && typeof window.forceSpin==='function'){ window.forceSpin(); return; }
@@ -1537,99 +1423,6 @@ function releaseHalberdCharge(){
   window.addEventListener('contextmenu', e=>{ const b=getBindingByKey('rmb'); if(b){ e.preventDefault(); dispatchAbility(b.ability); } });
 })();
 
-const origLoop = typeof loop === 'function' ? loop : null;
-let bossDebugLoopInjected = false;
-function bossDebugLoopWrapper() {
-  if(bossDebugActive && state.enemies.length) {
-    const boss = state.enemies[0];
-    const dmg = Math.max(0, bossDebugLastHp - boss.hp);
-    if(dmg > 0) {
-      const ts = new Date().toLocaleTimeString('de-DE',{hour12:false}).split(':').slice(1).join(':');
-      bossDebugLogArr.unshift(`[${ts}] -${dmg} HP`);
-      if(bossDebugLogArr.length > 10) bossDebugLogArr.length = 10;
-    }
-    bossDebugLastHp = boss.hp;
-    document.getElementById('bossDebugDmg').textContent = 'Schaden: ' + dmg;
-    document.getElementById('bossDebugBuffs').textContent = 'Buffs: ' + (boss.buffs && boss.buffs.length ? boss.buffs.join(', ') : '-');
- 
-    let debuffs = boss.debuffs && boss.debuffs.length ? boss.debuffs.slice() : [];
-    if(boss.daggerDot && boss.daggerDot.active && typeof boss.daggerDot.t === 'number' && typeof boss.daggerDot.dur === 'number' && boss.daggerDot.t < boss.daggerDot.dur) {
-      const rest = Math.max(0, boss.daggerDot.dur - boss.daggerDot.t).toFixed(1);
-      debuffs.push('DoT (' + rest + 's)');
-    }
-    document.getElementById('bossDebugDebuffs').textContent = 'Debuffs: ' + (debuffs.length ? debuffs.join(', ') : '-');
-    document.getElementById('bossDebugLog').innerHTML = bossDebugLogArr.map(e=>`<div>${e}</div>`).join('');
-  }
-  if(origLoop) origLoop();
-}
-if(typeof loop === 'function' && !bossDebugLoopInjected) {
-  bossDebugLoopInjected = true;
-  window.loop = bossDebugLoopWrapper;
-}
-
-// Kristof Test Mode (vollständiger Boss mit aktuellen Mechaniken)
-function startKristofTestMode(){
-  state.enemies = [];
-  state.projectiles = [];
-  state.shockwaves = [];
-  state.kristofKillsLeft = 0;
-  // Boost player + weapons for meaningful test damage
-  try {
-    if(typeof player !== 'undefined') {
-      player.level = 15;
-      player.xp = getXPCum ? getXPCum(15) : 0;
-      player.next = getXPReq ? getXPReq(16) : player.next;
-      // Recompute derived stats
-  // Test Boss Mode: erhöhter Basis-Schaden für schnellere Tests
-  if(typeof player.baseDamage === 'number') player.baseDamage = 100; else player.baseDamage = 100;
-      if(player.baseDamage != null && player.damagePerLevel != null){
-        player.dmg = player.baseDamage + (player.level - 1) * player.damagePerLevel;
-      }
-      player.maxHp = Math.max(player.maxHp || 1, 600 + player.level * 40);
-      player.hp = player.maxHp;
-    }
-    if(Array.isArray(weapons)){
-      const targetWeaponLevel = 20;
-      for(const w of weapons){
-        if(!w) continue;
-        const startLevel = w.lvl || 1;
-        if(startLevel < targetWeaponLevel){
-          for(let L=startLevel+1; L<=targetWeaponLevel; L++){
-            w.lvl = L;
-            // Evolve genau auf evolveLevel
-            if(w.evolveLevel && L === w.evolveLevel && typeof w.evolve === 'function' && !w.evolved){
-              try { w.evolve(w); } catch(_e){}
-            }
-            if(typeof w.onLevel === 'function') { try { w.onLevel(w); } catch(_e){} }
-            if(L > 10 && L % 10 === 0 && typeof w.onUpgrade === 'function') { try { w.onUpgrade(w, L); } catch(_e){} }
-          }
-        }
-        // Falls schon höher, unverändert lassen
-        if(w.evolveLevel && w.lvl >= w.evolveLevel && typeof w.evolve === 'function' && !w.evolved){
-          try { w.evolve(w); } catch(_e){}
-        }
-        if(getXPReq) w.next = getXPReq(w.lvl+1);
-        if('xp' in w) w.xp = 0; // reset progress bar
-      }
-    }
-    if(typeof buildUI === 'function') buildUI();
-    if(typeof updateHUD === 'function') updateHUD();
-  } catch(_ignore){}
-  // spawnKristof() deaktiviert (kein automatischer Kristof-Spawn beim Start)
-  // spawnKristof();
-  const k = state.enemies.find(e=>e.boss && e.name==='Kristof');
-  if(k && player){
-    // Spawn deutlich oberhalb & leicht seitlich, nicht im Spieler
-    k.x = player.x + 100;
-    k.y = player.y - 260; // höher
-    k.hp = k.maxHp;
-  }
-  // (Aufräumung) Debug-Hinweis für Kristof Testmodus entfernt
-}
-
-// Tastenkürzel: K respawned Kristof in Testmodus
-window.addEventListener('keydown', e=>{ if((e.key==='k'||e.key==='K') && TESTMODE_BOSS){ startKristofTestMode(); } });
-
 function particle(x, y, color = '#fff') {
   state.particles.push({ x, y, color, life: 0.7 + Math.random()*0.5, vx: (Math.random()-0.5)*80, vy: (Math.random()-0.5)*80 });
 }
@@ -2263,25 +2056,6 @@ function kristofCheckMidHP(k){
   }
 }
 
-// Zusätzliche einfache Kristof-AI im Testmodus, falls normale Loop nicht greift
-setInterval(()=>{
-  // Sicher: TESTMODE_BOSS kann undefiniert sein -> dann einfach nichts tun
-  if(typeof TESTMODE_BOSS==='undefined' || !TESTMODE_BOSS) return;
-  const k = state.kristof; if(!k) return;
-  // Leicht auf Spieler zulaufen
-  if(player){
-    const dx = player.x - k.x; const dy = player.y - k.y; const d = Math.hypot(dx,dy) || 1;
-    const sp = 60; k.x += dx/d * 0.16 * sp; k.y += dy/d * 0.16 * sp;
-  }
-  // Falls noch keine Welle jemals -> forcieren
-  if(k.shockwaveState && !k.shockwaveState.active && !k.shockwaveState.triggered80){
-    kristofStartShockSequence(k);
-  k.shockwaveState.triggered80 = true;
-  }
-}, 500);
-
- 
- 
 function kristofDeathCleanup() {
   
   
@@ -2898,9 +2672,6 @@ function updateDaggerDots(dt) {
           e.hp -= tick;
           if(typeof window.addDamageFloater==='function'){
             window.addDamageFloater({x:e.x, y:e.y-(e.r||24), amount:tick, type:'poison'});
-          }
-          if(TESTMODE_BOSS && e.boss){
-            console.log(`[Boss-Debug] DoT-Tick(Stack${i+1}/${e.daggerDot.stacks.length}): -${tick.toFixed(2)} HP t:${st.t.toFixed(2)}/${st.dur}`);
           }
           // Leichter Gift-Partikel Effekt pro Tick
           if(Math.random()<0.11) particle(e.x + (Math.random()-0.5)*e.r*1.0, e.y + (Math.random()-0.5)*e.r*1.0, 'rgba(60,255,120,0.08)');
@@ -4275,10 +4046,6 @@ window.spawnEnemy = function(type, ...args) {
   if(hpFill) hpFill.style.width = hpP + '%';
   // Ghost (Nachlauf) Logik
   (function(){
-    // Sicherstellen, dass TESTMODE_BOSS existiert, um ReferenceErrors zu vermeiden
-    if(typeof window!== 'undefined' && typeof TESTMODE_BOSS === 'undefined'){
-      window.TESTMODE_BOSS = false;
-    }
     // Fallback Stub: checkChestPickup falls durch Refactor entfernt
     if(typeof window.checkChestPickup !== 'function'){
       window.checkChestPickup = function(){
@@ -5112,26 +4879,6 @@ setTimeout(() => {
 // Startmenü und alte Charakterauswahl entfernt – Spiel startet direkt
   let live = document.getElementById('liveScore');
   if(live) live.style.display = 'none';
-  
-  setTimeout(() => {
-    const btn = document.getElementById('mainMenuBtn');
-    if(btn) {
-      btn.onclick = () => {
-        if(window.gameOverOverlay) window.gameOverOverlay.classList.remove('show');
-        
-               
-        const startMenu = document.getElementById('startMenu');
-        if(startMenu) startMenu.classList.add('show');
-        const charMenu = document.getElementById('characterMenu');
-        if(charMenu) charMenu.style.display = '';
-        const charInfo = document.getElementById('charInfoBox');
-        if(charInfo) charInfo.style.display = 'block';
-        restart();
-        const scoreDiv = document.getElementById('gameOverScore');
-        if(scoreDiv) scoreDiv.textContent = 'Score: 0';
-      };
-    }
-  }, 0);
 
     function angleDiff(a,b){ let d = a - b; while(d > Math.PI) d -= 2*Math.PI; while(d < -Math.PI) d += 2*Math.PI; return d; }
 
@@ -5663,18 +5410,6 @@ let current_hp = phase_hp[0];
   updatePlayerJump(dt);
   if(typeof updatePlayerDash==='function') updatePlayerDash(dt);
   // updateSwordSpin entfernt (Spin deaktiviert)
-      // Boss Test Modus: Erzwinge hohen Schaden (Basis 100) dauerhaft
-      if(TESTMODE_BOSS && typeof player !== 'undefined') {
-        const targetBase = 400; // erhöht für Testmodus
-        if(player.baseDamage == null || player.baseDamage < targetBase) player.baseDamage = targetBase;
-        if(player.damagePerLevel != null) {
-          const desired = player.baseDamage + (player.level - 1) * player.damagePerLevel;
-          if(player.dmg < desired) player.dmg = desired;
-        } else if(player.dmg < targetBase) {
-          player.dmg = targetBase;
-        }
-      }
-  // Testmodus: Logge Boss-Schaden, Debuffs, DoTs in die Konsole
   // Update dagger DoT ticks for all enemies
   updateDaggerDots(dt);
   // Kristof-spezifische Schadens- & Phasenlogik unabhängig von Position im enemies-Array
