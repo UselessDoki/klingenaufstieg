@@ -5,7 +5,7 @@
   transition: opacity 0.25s;
 }
  /* Verhindert zufälliges Markieren von Text in UI-Elementen */
-.panel, .overlay, .loot-msg, .labels, .hud, .hud *, .buffs, .tag, #gameOverScore, #charInfoBox, #startMenu, #pauseOverlay, #gameOver, #mainMenuBtn, #resumeBtn, #restartBtn1, #forceTestModeBtn {
+.panel, .overlay, .loot-msg, .labels, .hud, .hud *, .buffs, .tag, #gameOverScore, #charInfoBox, #startMenu, #pauseOverlay, #gameOver, #mainMenuBtn, #resumeBtn, #restartBtn1 {
   user-select: none;
 }
 .panel {
@@ -263,15 +263,6 @@ mix-blend-mode:normal;}
 #startBtn:hover { transform:translateY(-3px); box-shadow:0 10px 34px -6px #8855e6dd,0 0 0 1px #3a2b66 inset; }
 #startBtn:active { transform:translateY(-1px); box-shadow:0 4px 14px -4px #8855e6aa; }
 
-/* Boss Test Button Angleichen (sekundär) */
-#testBossBtn {
-  background: linear-gradient(135deg,#38e1d7,#1e8c96 60%);
-  color:#122325 !important;
-  font-weight:800;
-  box-shadow:0 6px 22px -6px #38e1d7bb,0 0 0 1px #10474d inset,0 2px 4px #000b;
-  transition: box-shadow .25s, transform .2s, filter .25s;
-}
-
 /* Disabled Start Button State */
 #startBtn.disabled-start, #startBtn:disabled {
   background: linear-gradient(135deg,#3a304f,#2a2238 60%) !important;
@@ -280,8 +271,6 @@ mix-blend-mode:normal;}
   cursor:not-allowed !important;
   opacity:0.55;
 }
-#testBossBtn:hover { transform:translateY(-3px); box-shadow:0 10px 30px -6px #38e1d7dd,0 0 0 1px #146269 inset; }
-#testBossBtn:active { transform:translateY(-1px); box-shadow:0 4px 14px -4px #38e1d7aa; }
 
 /* Name Input verfeinern */
 #playerNameInputStart {
@@ -303,16 +292,6 @@ mix-blend-mode:normal;}
 /* Force-hide next start info overlay (user request) */
 #nextStartInfo { display:none !important; visibility:hidden !important; opacity:0 !important; }
 
-/* --- Test-/Debug-UI ausgeblendet (auf Wunsch). Zum Reaktivieren diesen Block entfernen/auskommentieren --- */
-#forceTestModeBtn,
-#testBossBtn,
-#bossDebugOverlay,
-#testModeBtn {
-  display:none !important;
-  visibility:hidden !important;
-  pointer-events:none !important;
-  opacity:0 !important;
-}
 button.locked-selection {
   background: linear-gradient(135deg,#3a3a44,#26262e) !important;
   color:#c9cad2 !important;
